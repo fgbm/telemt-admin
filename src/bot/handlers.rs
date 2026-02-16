@@ -42,6 +42,29 @@ fn sender_display_name(msg: &Message) -> Option<String> {
     })
 }
 
+enum CreateTarget {
+    UserId(i64),
+    Username(String),
+}
+
+fn parse_create_target(arg: &str) -> Option<CreateTarget> {
+    let trimmed = arg.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if let Ok(user_id) = trimmed.parse::<i64>() {
+        return Some(CreateTarget::UserId(user_id));
+    }
+
+    let username = trimmed.strip_prefix('@')?.trim();
+    if username.is_empty() {
+        return None;
+    }
+
+    Some(CreateTarget::Username(username.to_string()))
+}
+
 fn is_admin_message(msg: &Message, state: &BotState) -> bool {
     sender_user_id(msg).is_some_and(|user_id| state.config.is_admin(user_id))
 }
@@ -357,11 +380,32 @@ async fn cmd_create(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
     }
 
     let text = msg.text().unwrap_or("");
-    let tg_user_id: i64 = match text.split_whitespace().nth(1).unwrap_or("").parse() {
-        Ok(id) => id,
-        Err(_) => {
-            bot.send_message(msg.chat.id, "Использование: /create <telegram_user_id>")
-                .await?;
+    let arg = text.split_whitespace().nth(1).unwrap_or("");
+    let tg_user_id: i64 = match parse_create_target(arg) {
+        Some(CreateTarget::UserId(id)) => id,
+        Some(CreateTarget::Username(username)) => {
+            match state.db.find_tg_user_id_by_username(&username).await? {
+                Some(user_id) => user_id,
+                None => {
+                    bot.send_message(
+                        msg.chat.id,
+                        format!(
+                            "Пользователь @{} не найден в базе.\n\
+                             Он должен хотя бы раз отправить боту /start.",
+                            username
+                        ),
+                    )
+                    .await?;
+                    return Ok(());
+                }
+            }
+        }
+        None => {
+            bot.send_message(
+                msg.chat.id,
+                "Использование: /create <telegram_user_id | @username>",
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -489,7 +533,7 @@ async fn cmd_help(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
 Для администраторов:
 /approve <id> — одобрить заявку
 /reject <id> — отклонить заявку
-/create <tg_user_id> — создать пользователя
+/create <tg_user_id | @username> — создать пользователя
 /delete <tg_user_id> — удалить пользователя
 /service <start|stop|restart|reload|status> — управление telemt.service"#;
     let reply_markup = if is_admin {
@@ -676,6 +720,17 @@ async fn handle_menu_buttons(bot: Bot, msg: Message, state: BotState) -> Handler
         }
         crate::bot::keyboards::BTN_ADMIN_STATS if is_admin => {
             admin_show_stats(&bot, msg.chat.id, &state).await?;
+        }
+        crate::bot::keyboards::BTN_ADMIN_CREATE_HINT if is_admin => {
+            bot.send_message(
+                msg.chat.id,
+                "Создание пользователя:\n\
+                 /create <tg_user_id>\n\
+                 /create @username\n\n\
+                 Для варианта с @username пользователь должен ранее отправить боту /start.",
+            )
+            .reply_markup(crate::bot::keyboards::admin_menu())
+            .await?;
         }
         _ => {
             let text = if is_admin {

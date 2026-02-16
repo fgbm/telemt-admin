@@ -325,6 +325,28 @@ impl Db {
         Ok(r.and_then(|x| x.telemt_username.zip(x.secret)))
     }
 
+    /// Ищет tg_user_id по tg_username (без учёта регистра, без @).
+    pub async fn find_tg_user_id_by_username(
+        &self,
+        username: &str,
+    ) -> Result<Option<i64>, anyhow::Error> {
+        let normalized = username.trim_start_matches('@');
+        if normalized.is_empty() {
+            return Ok(None);
+        }
+
+        let user_id = sqlx::query_scalar::<_, i64>(
+            "SELECT tg_user_id FROM registration_requests
+             WHERE lower(tg_username) = lower(?)
+             ORDER BY created_at DESC
+             LIMIT 1",
+        )
+        .bind(normalized)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(user_id)
+    }
+
     pub async fn list_pending_requests(
         &self,
         limit: i64,

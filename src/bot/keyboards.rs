@@ -9,14 +9,13 @@ pub const BTN_ADMIN_PENDING: &str = "📥 Новые заявки";
 pub const BTN_ADMIN_USERS: &str = "👥 Список пользователей";
 pub const BTN_ADMIN_SERVICE: &str = "⚙️ Статус сервиса";
 pub const BTN_ADMIN_STATS: &str = "📊 Статистика";
+pub const BTN_ADMIN_CREATE_HINT: &str = "➕ Создать @username";
 
 pub fn user_menu() -> KeyboardMarkup {
-    KeyboardMarkup::new(vec![
-        vec![
-            KeyboardButton::new(BTN_USER_LINK),
-            KeyboardButton::new(BTN_USER_GUIDE),
-        ],
-    ])
+    KeyboardMarkup::new(vec![vec![
+        KeyboardButton::new(BTN_USER_LINK),
+        KeyboardButton::new(BTN_USER_GUIDE),
+    ]])
     .resize_keyboard()
     .persistent()
 }
@@ -31,6 +30,7 @@ pub fn admin_menu() -> KeyboardMarkup {
             KeyboardButton::new(BTN_ADMIN_SERVICE),
             KeyboardButton::new(BTN_ADMIN_STATS),
         ],
+        vec![KeyboardButton::new(BTN_ADMIN_CREATE_HINT)],
     ])
     .resize_keyboard()
     .persistent()
