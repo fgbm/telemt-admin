@@ -80,6 +80,16 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
         "Received /start command"
     );
 
+    if state.config.is_admin(user_id) {
+        bot.send_message(
+            msg.chat.id,
+            "Добро пожаловать в панель администратора. Используйте кнопки ниже.",
+        )
+        .reply_markup(crate::bot::keyboards::admin_menu())
+        .await?;
+        return Ok(());
+    }
+
     let result = state
         .db
         .register_or_get(user_id, username.as_deref())
@@ -90,6 +100,7 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
             let params = state.telemt_cfg.read_link_params()?;
             let link = build_proxy_link(&params, &secret)?;
             bot.send_message(msg.chat.id, format!("Ваша ссылка на прокси:\n\n{}", link))
+                .reply_markup(crate::bot::keyboards::user_menu())
                 .await?;
             return Ok(());
         }
@@ -98,6 +109,7 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                 msg.chat.id,
                 "Ваша заявка на регистрацию отклонена администратором.",
             )
+            .reply_markup(crate::bot::keyboards::user_menu())
             .await?;
             return Ok(());
         }
@@ -106,6 +118,7 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                 msg.chat.id,
                 "Ваша заявка уже на рассмотрении. Ожидайте подтверждения администратора.",
             )
+            .reply_markup(crate::bot::keyboards::user_menu())
             .await?;
             return Ok(());
         }
@@ -114,6 +127,7 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                 msg.chat.id,
                 "Заявка на регистрацию отправлена администратору. Ожидайте подтверждения.",
             )
+            .reply_markup(crate::bot::keyboards::user_menu())
             .await?;
             notify_admins(&bot, &state, req).await?;
         }
@@ -397,11 +411,12 @@ async fn cmd_service(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
         "start" => ("start", state.service.start()),
         "stop" => ("stop", state.service.stop()),
         "restart" => ("restart", state.service.restart()),
+        "reload" => ("reload", state.service.reload()),
         "status" => ("status", state.service.status()),
         _ => {
             bot.send_message(
                 msg.chat.id,
-                "Использование: /service <start|stop|restart|status>",
+                "Использование: /service <start|stop|restart|reload|status>",
             )
             .await?;
             return Ok(());
@@ -417,23 +432,7 @@ async fn cmd_link(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
     let user_id = sender_user_id(&msg).unwrap_or_default();
     tracing::info!(user_id = user_id, "Received /link command");
 
-    let maybe = state.db.get_approved(user_id).await?;
-    match maybe {
-        Some((_, secret)) => {
-            let params = state.telemt_cfg.read_link_params()?;
-            let link = build_proxy_link(&params, &secret)?;
-            bot.send_message(msg.chat.id, format!("Ваша ссылка на прокси:\n\n{}", link))
-                .await?;
-        }
-        None => {
-            bot.send_message(
-                msg.chat.id,
-                "У вас нет доступа к прокси. Отправьте /start для регистрации.",
-            )
-            .await?;
-        }
-    }
-    Ok(())
+    send_user_link(&bot, msg.chat.id, user_id, &state).await
 }
 
 #[derive(BotCommands, Clone)]
@@ -457,7 +456,9 @@ enum BotCommand {
     Service,
 }
 
-async fn cmd_help(bot: Bot, msg: Message) -> HandlerResult {
+async fn cmd_help(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
+    let user_id = sender_user_id(&msg).unwrap_or_default();
+    let is_admin = state.config.is_admin(user_id);
     let text = r#"Команды:
 /start — зарегистрироваться (заявка на подтверждение админу)
 /link — получить ссылку на прокси (если уже одобрены)
@@ -467,8 +468,289 @@ async fn cmd_help(bot: Bot, msg: Message) -> HandlerResult {
 /reject <id> — отклонить заявку
 /create <tg_user_id> — создать пользователя
 /delete <tg_user_id> — удалить пользователя
-/service <start|stop|restart|status> — управление telemt.service"#;
-    bot.send_message(msg.chat.id, text).await?;
+/service <start|stop|restart|reload|status> — управление telemt.service"#;
+    let reply_markup = if is_admin {
+        crate::bot::keyboards::admin_menu()
+    } else {
+        crate::bot::keyboards::user_menu()
+    };
+    bot.send_message(msg.chat.id, text)
+        .reply_markup(reply_markup)
+        .await?;
+    Ok(())
+}
+
+async fn send_user_link(
+    bot: &Bot,
+    chat_id: ChatId,
+    tg_user_id: i64,
+    state: &BotState,
+) -> HandlerResult {
+    let maybe = state.db.get_approved(tg_user_id).await?;
+    match maybe {
+        Some((_, secret)) => {
+            let params = state.telemt_cfg.read_link_params()?;
+            let link = build_proxy_link(&params, &secret)?;
+            bot.send_message(chat_id, format!("Ваша ссылка на прокси:\n\n{}", link))
+                .reply_markup(crate::bot::keyboards::user_menu())
+                .await?;
+        }
+        None => {
+            bot.send_message(
+                chat_id,
+                "У вас нет доступа к прокси. Отправьте /start для регистрации.",
+            )
+            .reply_markup(crate::bot::keyboards::user_menu())
+            .await?;
+        }
+    }
+    Ok(())
+}
+
+fn usage_guide_text() -> &'static str {
+    "Как подключиться к прокси:\n\
+1) Нажмите «🔗 Моя ссылка» и скопируйте ссылку.\n\
+2) Откройте Telegram на нужном устройстве.\n\
+3) Перейдите в Настройки -> Данные и память -> Прокси.\n\
+4) Вставьте ссылку и включите прокси.\n\
+\n\
+Если не получается, нажмите «🆘 Поддержка»."
+}
+
+fn support_text(state: &BotState) -> String {
+    let admins = state
+        .config
+        .admin_ids
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "Поддержка:\n\
+Свяжитесь с администратором сервиса.\n\
+ID администраторов: {}",
+        admins
+    )
+}
+
+async fn admin_show_pending(bot: &Bot, chat_id: ChatId, state: &BotState) -> HandlerResult {
+    let pending = state.db.list_pending_requests(10).await?;
+    if pending.is_empty() {
+        bot.send_message(chat_id, "Новых заявок нет.")
+            .reply_markup(crate::bot::keyboards::admin_menu())
+            .await?;
+        return Ok(());
+    }
+
+    bot.send_message(chat_id, format!("Найдено новых заявок: {}", pending.len()))
+        .reply_markup(crate::bot::keyboards::admin_menu())
+        .await?;
+
+    for req in pending {
+        let text = format!(
+            "📋 Заявка #{}:\n\
+             User ID: {}\n\
+             Username: @{}\n\
+             Время: {}",
+            req.id,
+            req.tg_user_id,
+            req.tg_username.as_deref().unwrap_or("—"),
+            format_timestamp(req.created_at),
+        );
+        bot.send_message(chat_id, text)
+            .reply_markup(crate::bot::keyboards::approve_reject_buttons(req.id))
+            .await?;
+    }
+    Ok(())
+}
+
+async fn admin_show_users(bot: &Bot, chat_id: ChatId, state: &BotState) -> HandlerResult {
+    let users = state.db.list_active_users(20).await?;
+    if users.is_empty() {
+        bot.send_message(chat_id, "Активных пользователей нет.")
+            .reply_markup(crate::bot::keyboards::admin_menu())
+            .await?;
+        return Ok(());
+    }
+
+    bot.send_message(
+        chat_id,
+        format!(
+            "Активные пользователи: {} (показаны последние {})",
+            users.len(),
+            users.len()
+        ),
+    )
+    .reply_markup(crate::bot::keyboards::admin_menu())
+    .await?;
+
+    for user in users {
+        let text = format!(
+            "👤 {} (tg id: {})\nUsername: @{}\nСоздано: {}",
+            user.telemt_username.as_deref().unwrap_or("—"),
+            user.tg_user_id,
+            user.tg_username.as_deref().unwrap_or("—"),
+            format_timestamp(user.created_at),
+        );
+        bot.send_message(chat_id, text)
+            .reply_markup(crate::bot::keyboards::delete_user_button(user.tg_user_id))
+            .await?;
+    }
+    Ok(())
+}
+
+async fn admin_show_stats(bot: &Bot, chat_id: ChatId, state: &BotState) -> HandlerResult {
+    let stats = state.db.admin_stats().await?;
+    let text = format!(
+        "📊 Статистика:\n\
+         Всего записей: {}\n\
+         Ожидают: {}\n\
+         Активные: {}\n\
+         Отклонённые: {}\n\
+         Удалённые: {}",
+        stats.total, stats.pending, stats.approved, stats.rejected, stats.deleted
+    );
+    bot.send_message(chat_id, text)
+        .reply_markup(crate::bot::keyboards::admin_menu())
+        .await?;
+    Ok(())
+}
+
+async fn admin_show_service_panel(bot: &Bot, chat_id: ChatId, state: &BotState) -> HandlerResult {
+    let result = state.service.status();
+    let text = format!(
+        "⚙️ Сервис telemt\n\n{}",
+        state.service.format_result("status", &result)
+    );
+    bot.send_message(chat_id, text)
+        .reply_markup(crate::bot::keyboards::service_control_buttons())
+        .await?;
+    Ok(())
+}
+
+async fn handle_menu_buttons(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
+    let Some(text) = msg.text() else {
+        return Ok(());
+    };
+    let user_id = sender_user_id(&msg).unwrap_or_default();
+    let is_admin = state.config.is_admin(user_id);
+
+    match text {
+        crate::bot::keyboards::BTN_USER_LINK => {
+            send_user_link(&bot, msg.chat.id, user_id, &state).await?;
+        }
+        crate::bot::keyboards::BTN_USER_GUIDE => {
+            bot.send_message(msg.chat.id, usage_guide_text())
+                .reply_markup(crate::bot::keyboards::user_menu())
+                .await?;
+        }
+        crate::bot::keyboards::BTN_USER_SUPPORT => {
+            bot.send_message(msg.chat.id, support_text(&state))
+                .reply_markup(crate::bot::keyboards::user_menu())
+                .await?;
+        }
+        crate::bot::keyboards::BTN_ADMIN_PENDING if is_admin => {
+            admin_show_pending(&bot, msg.chat.id, &state).await?;
+        }
+        crate::bot::keyboards::BTN_ADMIN_USERS if is_admin => {
+            admin_show_users(&bot, msg.chat.id, &state).await?;
+        }
+        crate::bot::keyboards::BTN_ADMIN_SERVICE if is_admin => {
+            admin_show_service_panel(&bot, msg.chat.id, &state).await?;
+        }
+        crate::bot::keyboards::BTN_ADMIN_STATS if is_admin => {
+            admin_show_stats(&bot, msg.chat.id, &state).await?;
+        }
+        _ => {
+            let text = if is_admin {
+                "Не понял команду. Используйте кнопки админ-меню ниже."
+            } else {
+                "Не понял запрос. Используйте кнопки меню ниже."
+            };
+            let reply_markup = if is_admin {
+                crate::bot::keyboards::admin_menu()
+            } else {
+                crate::bot::keyboards::user_menu()
+            };
+            bot.send_message(msg.chat.id, text)
+                .reply_markup(reply_markup)
+                .await?;
+        }
+    }
+    Ok(())
+}
+
+async fn callback_delete_user(bot: Bot, q: CallbackQuery, state: BotState) -> HandlerResult {
+    let callback_id = q.id.clone();
+    let admin_id = q.from.id.0 as i64;
+    if !state.config.is_admin(admin_id) {
+        bot.answer_callback_query(callback_id)
+            .text("Недостаточно прав")
+            .show_alert(true)
+            .await?;
+        return Ok(());
+    }
+
+    let data = q.data.as_deref().unwrap_or("");
+    let tg_user_id = parse_callback_request_id(data, "delete_user:")?;
+    let telemt_user = telemt_username(tg_user_id);
+    let removed_from_cfg = state.telemt_cfg.remove_user(&telemt_user)?;
+    let removed_from_db = state.db.deactivate_user(tg_user_id).await?;
+
+    let status_text = if removed_from_cfg || removed_from_db {
+        format!("Пользователь {} удалён", telemt_user)
+    } else {
+        format!("Пользователь {} не найден", telemt_user)
+    };
+
+    bot.answer_callback_query(callback_id)
+        .text(status_text.clone())
+        .await?;
+
+    if let Some((chat_id, message_id)) = callback_message_target(&q) {
+        bot.edit_message_reply_markup(chat_id, message_id)
+            .reply_markup(teloxide::types::InlineKeyboardMarkup::default())
+            .await?;
+        bot.send_message(chat_id, status_text)
+            .reply_markup(crate::bot::keyboards::admin_menu())
+            .await?;
+    }
+    Ok(())
+}
+
+async fn callback_service_action(bot: Bot, q: CallbackQuery, state: BotState) -> HandlerResult {
+    let callback_id = q.id.clone();
+    let admin_id = q.from.id.0 as i64;
+    if !state.config.is_admin(admin_id) {
+        bot.answer_callback_query(callback_id)
+            .text("Недостаточно прав")
+            .show_alert(true)
+            .await?;
+        return Ok(());
+    }
+
+    let data = q.data.as_deref().unwrap_or("");
+    let action = data.strip_prefix("service:").unwrap_or("status");
+    let (action_name, result) = match action {
+        "restart" => ("restart", state.service.restart()),
+        "reload" => ("reload", state.service.reload()),
+        "status" => ("status", state.service.status()),
+        _ => ("status", state.service.status()),
+    };
+
+    bot.answer_callback_query(callback_id)
+        .text(format!("Выполнено: {}", action_name))
+        .await?;
+
+    if let Some((chat_id, message_id)) = callback_message_target(&q) {
+        let text = format!(
+            "⚙️ Сервис telemt\n\n{}",
+            state.service.format_result(action_name, &result)
+        );
+        bot.edit_message_text(chat_id, message_id, text)
+            .reply_markup(crate::bot::keyboards::service_control_buttons())
+            .await?;
+    }
     Ok(())
 }
 
@@ -513,9 +795,37 @@ pub fn schema() -> dptree::Handler<
                 }
             })
             .endpoint(callback_reject),
+        )
+        .branch(
+            dptree::filter_map(|q: CallbackQuery| {
+                if q.data
+                    .as_deref()
+                    .is_some_and(|payload| payload.starts_with("delete_user:"))
+                {
+                    Some(q)
+                } else {
+                    None
+                }
+            })
+            .endpoint(callback_delete_user),
+        )
+        .branch(
+            dptree::filter_map(|q: CallbackQuery| {
+                if q.data
+                    .as_deref()
+                    .is_some_and(|payload| payload.starts_with("service:"))
+                {
+                    Some(q)
+                } else {
+                    None
+                }
+            })
+            .endpoint(callback_service_action),
         );
 
-    let message_handler = Update::filter_message().branch(command_handler);
+    let message_handler = Update::filter_message()
+        .branch(command_handler)
+        .endpoint(handle_menu_buttons);
 
     dptree::entry()
         .branch(message_handler)

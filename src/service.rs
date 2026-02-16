@@ -83,6 +83,10 @@ impl ServiceController {
         self.run_systemctl("restart")
     }
 
+    pub fn reload(&self) -> ServiceResult {
+        self.run_systemctl("reload")
+    }
+
     pub fn status(&self) -> ServiceResult {
         self.run_systemctl("status")
     }

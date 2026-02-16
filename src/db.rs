@@ -30,7 +30,18 @@ pub struct RegistrationRequest {
 }
 
 const STATUS_APPROVED: &str = "approved";
+const STATUS_PENDING: &str = "pending";
+const STATUS_REJECTED: &str = "rejected";
 const STATUS_DELETED: &str = "deleted";
+
+#[derive(Debug, Clone)]
+pub struct AdminStats {
+    pub total: i64,
+    pub pending: i64,
+    pub approved: i64,
+    pub rejected: i64,
+    pub deleted: i64,
+}
 
 pub struct Db {
     pool: SqlitePool,
@@ -292,5 +303,79 @@ impl Db {
         .fetch_optional(&self.pool)
         .await?;
         Ok(r.and_then(|x| x.telemt_username.zip(x.secret)))
+    }
+
+    pub async fn list_pending_requests(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<RegistrationRequest>, anyhow::Error> {
+        let rows = sqlx::query_as::<_, RegistrationRequest>(
+            "SELECT id, tg_user_id, tg_username, status, telemt_username, secret, created_at
+             FROM registration_requests
+             WHERE status = ?
+             ORDER BY created_at ASC
+             LIMIT ?",
+        )
+        .bind(STATUS_PENDING)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    pub async fn list_active_users(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<RegistrationRequest>, anyhow::Error> {
+        let rows = sqlx::query_as::<_, RegistrationRequest>(
+            "SELECT id, tg_user_id, tg_username, status, telemt_username, secret, created_at
+             FROM registration_requests
+             WHERE status = ?
+             ORDER BY created_at DESC
+             LIMIT ?",
+        )
+        .bind(STATUS_APPROVED)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    pub async fn admin_stats(&self) -> Result<AdminStats, anyhow::Error> {
+        let total = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM registration_requests")
+            .fetch_one(&self.pool)
+            .await?;
+        let pending = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM registration_requests WHERE status = ?",
+        )
+        .bind(STATUS_PENDING)
+        .fetch_one(&self.pool)
+        .await?;
+        let approved = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM registration_requests WHERE status = ?",
+        )
+        .bind(STATUS_APPROVED)
+        .fetch_one(&self.pool)
+        .await?;
+        let rejected = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM registration_requests WHERE status = ?",
+        )
+        .bind(STATUS_REJECTED)
+        .fetch_one(&self.pool)
+        .await?;
+        let deleted = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM registration_requests WHERE status = ?",
+        )
+        .bind(STATUS_DELETED)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(AdminStats {
+            total,
+            pending,
+            approved,
+            rejected,
+            deleted,
+        })
     }
 }
