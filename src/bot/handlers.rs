@@ -537,23 +537,7 @@ fn usage_guide_text() -> &'static str {
 3) Перейдите в Настройки -> Данные и память -> Прокси.\n\
 4) Вставьте ссылку и включите прокси.\n\
 \n\
-Если не получается, нажмите «🆘 Поддержка»."
-}
-
-fn support_text(state: &BotState) -> String {
-    let admins = state
-        .config
-        .admin_ids
-        .iter()
-        .map(std::string::ToString::to_string)
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!(
-        "Поддержка:\n\
-Свяжитесь с администратором сервиса.\n\
-ID администраторов: {}",
-        admins
-    )
+Если не получается, обратитесь к администратору."
 }
 
 async fn admin_show_pending(bot: &Bot, chat_id: ChatId, state: &BotState) -> HandlerResult {
@@ -678,11 +662,6 @@ async fn handle_menu_buttons(bot: Bot, msg: Message, state: BotState) -> Handler
         }
         crate::bot::keyboards::BTN_USER_GUIDE => {
             bot.send_message(msg.chat.id, usage_guide_text())
-                .reply_markup(crate::bot::keyboards::user_menu())
-                .await?;
-        }
-        crate::bot::keyboards::BTN_USER_SUPPORT => {
-            bot.send_message(msg.chat.id, support_text(&state))
                 .reply_markup(crate::bot::keyboards::user_menu())
                 .await?;
         }

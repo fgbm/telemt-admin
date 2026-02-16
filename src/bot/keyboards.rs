@@ -4,7 +4,6 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton
 
 pub const BTN_USER_LINK: &str = "🔗 Моя ссылка";
 pub const BTN_USER_GUIDE: &str = "❓ Инструкция";
-pub const BTN_USER_SUPPORT: &str = "🆘 Поддержка";
 
 pub const BTN_ADMIN_PENDING: &str = "📥 Новые заявки";
 pub const BTN_ADMIN_USERS: &str = "👥 Список пользователей";
@@ -17,7 +16,6 @@ pub fn user_menu() -> KeyboardMarkup {
             KeyboardButton::new(BTN_USER_LINK),
             KeyboardButton::new(BTN_USER_GUIDE),
         ],
-        vec![KeyboardButton::new(BTN_USER_SUPPORT)],
     ])
     .resize_keyboard()
     .persistent()
