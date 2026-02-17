@@ -223,13 +223,21 @@ async fn approve_request_and_build_link(
 async fn approve_user_direct_and_build_link(
     state: &BotState,
     tg_user_id: i64,
+    tg_username: Option<&str>,
+    tg_display_name: Option<&str>,
 ) -> Result<String, anyhow::Error> {
     let telemt_user = telemt_username(tg_user_id);
     let secret = generate_user_secret();
     state.telemt_cfg.upsert_user(&telemt_user, &secret)?;
     state
         .db
-        .set_approved(tg_user_id, &telemt_user, &secret)
+        .set_approved(
+            tg_user_id,
+            tg_username,
+            tg_display_name,
+            &telemt_user,
+            &secret,
+        )
         .await?;
 
     // telemt не поддерживает hot reload — перезапуск обязателен после изменения конфига
@@ -336,7 +344,9 @@ async fn process_invite_token(
             }
         }
         TokenMode::AutoApprove => {
-            let link = approve_user_direct_and_build_link(state, tg_user_id).await?;
+            let link =
+                approve_user_direct_and_build_link(state, tg_user_id, tg_username, tg_display_name)
+                    .await?;
             bot.send_message(
                 msg.chat.id,
                 format!("Доступ одобрен! Ваша ссылка для подключения:\n\n{}", link),
@@ -679,7 +689,7 @@ async fn cmd_create(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
     tracing::info!(tg_user_id = tg_user_id, "Admin command /create");
 
     let telemt_user = telemt_username(tg_user_id);
-    let link = approve_user_direct_and_build_link(&state, tg_user_id).await?;
+    let link = approve_user_direct_and_build_link(&state, tg_user_id, None, None).await?;
 
     bot.send_message(
         msg.chat.id,

@@ -375,6 +375,8 @@ impl Db {
     pub async fn set_approved(
         &self,
         tg_user_id: i64,
+        tg_username: Option<&str>,
+        tg_display_name: Option<&str>,
         telemt_username: &str,
         secret: &str,
     ) -> Result<(), anyhow::Error> {
@@ -389,8 +391,17 @@ impl Db {
 
         if exists.is_some() {
             sqlx::query(
-                "UPDATE registration_requests SET status = 'approved', telemt_username = ?, secret = ?, resolved_at = ? WHERE tg_user_id = ?",
+                "UPDATE registration_requests
+                 SET status = 'approved',
+                     tg_username = ?,
+                     tg_display_name = ?,
+                     telemt_username = ?,
+                     secret = ?,
+                     resolved_at = ?
+                 WHERE tg_user_id = ?",
             )
+            .bind(tg_username)
+            .bind(tg_display_name)
             .bind(telemt_username)
             .bind(secret)
             .bind(now)
@@ -399,9 +410,13 @@ impl Db {
             .await?;
         } else {
             sqlx::query(
-                "INSERT INTO registration_requests (tg_user_id, status, telemt_username, secret, created_at, resolved_at) VALUES (?, 'approved', ?, ?, ?, ?)",
+                "INSERT INTO registration_requests
+                 (tg_user_id, tg_username, tg_display_name, status, telemt_username, secret, created_at, resolved_at)
+                 VALUES (?, ?, ?, 'approved', ?, ?, ?, ?)",
             )
             .bind(tg_user_id)
+            .bind(tg_username)
+            .bind(tg_display_name)
             .bind(telemt_username)
             .bind(secret)
             .bind(now)
