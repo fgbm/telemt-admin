@@ -824,7 +824,15 @@ async fn cmd_token(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                         index += 2;
                     }
                     value => {
-                        if days.is_none() && let Ok(parsed_days) = value.parse::<i64>() {
+                        if let Ok(parsed_days) = value.parse::<i64>() {
+                            if days.is_some() {
+                                bot.send_message(
+                                    msg.chat.id,
+                                    "Использование: /token create [days] [--auto|-a] [--max-uses N]",
+                                )
+                                .await?;
+                                return Ok(());
+                            }
                             days = Some(parsed_days);
                             index += 1;
                             continue;
