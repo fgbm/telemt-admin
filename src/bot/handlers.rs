@@ -14,6 +14,7 @@ use std::sync::Arc;
 use teloxide::dispatching::DpHandlerDescription;
 use teloxide::dptree;
 use teloxide::prelude::*;
+use teloxide::types::ParseMode;
 use teloxide::utils::command::BotCommands;
 use tokio::sync::Mutex;
 
@@ -73,18 +74,26 @@ fn parse_create_target(arg: &str) -> Option<CreateTarget> {
     Some(CreateTarget::Username(username.to_string()))
 }
 
-fn parse_start_token(text: &str) -> Option<&str> {
+fn parse_start_token(text: &str) -> Option<String> {
     let mut parts = text.split_whitespace();
     let command = parts.next()?;
     if !command.starts_with("/start") {
         return None;
     }
-    let token = parts.next()?;
-    let trimmed = token.trim();
-    if trimmed.is_empty() {
+    let token = parts.next()?.trim();
+    if token.is_empty() {
+        return None;
+    }
+
+    let decoded = match urlencoding::decode(token) {
+        Ok(value) => value.into_owned(),
+        Err(_) => token.to_string(),
+    };
+    let normalized = decoded.trim().trim_matches('`').trim();
+    if normalized.is_empty() {
         None
     } else {
-        Some(trimmed)
+        Some(normalized.to_string())
     }
 }
 
@@ -442,7 +451,7 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
             user_id,
             username.as_deref(),
             display_name.as_deref(),
-            token,
+            &token,
         )
         .await?;
         return Ok(());
@@ -891,7 +900,7 @@ async fn cmd_token(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                 .as_deref()
                 .map(|bot_username| {
                     let invite_link = build_bot_start_link(bot_username, &token.token);
-                    format!("Ссылка: `{}`\n", invite_link)
+                    format!("Ссылка: {}\n", invite_link)
                 })
                 .unwrap_or_else(|| {
                     "Ссылка: недоступна (у бота не задан username в Telegram).\n".to_string()
@@ -899,12 +908,12 @@ async fn cmd_token(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
 
             let response = format!(
                 "✅ Токен создан:\n\
-                 Код: `{}`\n\
+                 Код: <code>{}</code>\n\
                  {}\
                  Режим: {}\n\
                  Действует до: {}\n\
                  Лимит использований: {}\n\
-                 Используйте команду `/token revoke {}` для отзыва.",
+                 Используйте команду <code>/token revoke {}</code> для отзыва.",
                 token.token,
                 link_line,
                 format_mode(token.auto_approve),
@@ -915,7 +924,9 @@ async fn cmd_token(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                     .unwrap_or_else(|| "без лимита".to_string()),
                 token.token
             );
-            bot.send_message(msg.chat.id, response).await?;
+            bot.send_message(msg.chat.id, response)
+                .parse_mode(ParseMode::Html)
+                .await?;
         }
         "list" => {
             let tokens = state.db.list_active_invite_tokens(50).await?;
