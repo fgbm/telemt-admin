@@ -3,6 +3,7 @@
 use rand::distr::{Alphanumeric, SampleString};
 use sqlx::FromRow;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
+use std::fmt;
 use std::path::Path;
 use std::str::FromStr;
 use thiserror::Error;
@@ -26,10 +27,31 @@ pub struct RegistrationRequest {
     pub tg_user_id: i64,
     pub tg_username: Option<String>,
     pub tg_display_name: Option<String>,
-    pub status: String,
+    pub status: RequestStatus,
     pub telemt_username: Option<String>,
     pub secret: Option<String>,
     pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
+#[sqlx(type_name = "TEXT", rename_all = "lowercase")]
+pub enum RequestStatus {
+    Pending,
+    Approved,
+    Rejected,
+    Deleted,
+}
+
+impl fmt::Display for RequestStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let value = match self {
+            Self::Pending => STATUS_PENDING,
+            Self::Approved => STATUS_APPROVED,
+            Self::Rejected => STATUS_REJECTED,
+            Self::Deleted => STATUS_DELETED,
+        };
+        f.write_str(value)
+    }
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -78,6 +100,7 @@ const STATUS_APPROVED: &str = "approved";
 const STATUS_PENDING: &str = "pending";
 const STATUS_REJECTED: &str = "rejected";
 const STATUS_DELETED: &str = "deleted";
+const SELECT_REQUEST: &str = "SELECT id, tg_user_id, tg_username, tg_display_name, status, telemt_username, secret, created_at FROM registration_requests";
 
 #[derive(Debug, Clone)]
 pub struct AdminStats {
@@ -223,23 +246,22 @@ impl Db {
     ) -> Result<RegisterResult, anyhow::Error> {
         let now = current_unix_timestamp()?;
 
-        let existing = sqlx::query_as::<_, RegistrationRequest>(
-            "SELECT id, tg_user_id, tg_username, tg_display_name, status, telemt_username, secret, created_at FROM registration_requests WHERE tg_user_id = ?",
-        )
+        let existing_sql = format!("{} WHERE tg_user_id = ?", SELECT_REQUEST);
+        let existing = sqlx::query_as::<_, RegistrationRequest>(&existing_sql)
         .bind(tg_user_id)
         .fetch_optional(&self.pool)
         .await?;
 
         if let Some(r) = existing {
-            return match r.status.as_str() {
-                "approved" => {
+            return match r.status {
+                RequestStatus::Approved => {
                     if let Some(s) = r.secret {
                         Ok(RegisterResult::Approved(s))
                     } else {
                         Ok(RegisterResult::AlreadyPending)
                     }
                 }
-                "rejected" => Ok(RegisterResult::Rejected),
+                RequestStatus::Rejected => Ok(RegisterResult::Rejected),
                 _ => {
                     sqlx::query(
                         "UPDATE registration_requests SET tg_username = ?, tg_display_name = ?, created_at = ? WHERE tg_user_id = ?",
@@ -277,9 +299,8 @@ impl Db {
         &self,
         tg_user_id: i64,
     ) -> Result<Option<RegistrationRequest>, anyhow::Error> {
-        let r = sqlx::query_as::<_, RegistrationRequest>(
-            "SELECT id, tg_user_id, tg_username, tg_display_name, status, telemt_username, secret, created_at FROM registration_requests WHERE tg_user_id = ? AND status = 'pending'",
-        )
+        let sql = format!("{} WHERE tg_user_id = ? AND status = '{}'", SELECT_REQUEST, STATUS_PENDING);
+        let r = sqlx::query_as::<_, RegistrationRequest>(&sql)
         .bind(tg_user_id)
         .fetch_optional(&self.pool)
         .await?;
@@ -291,9 +312,8 @@ impl Db {
         &self,
         id: i64,
     ) -> Result<Option<RegistrationRequest>, anyhow::Error> {
-        let r = sqlx::query_as::<_, RegistrationRequest>(
-            "SELECT id, tg_user_id, tg_username, tg_display_name, status, telemt_username, secret, created_at FROM registration_requests WHERE id = ? AND status = 'pending'",
-        )
+        let sql = format!("{} WHERE id = ? AND status = '{}'", SELECT_REQUEST, STATUS_PENDING);
+        let r = sqlx::query_as::<_, RegistrationRequest>(&sql)
         .bind(id)
         .fetch_optional(&self.pool)
         .await?;
@@ -309,9 +329,8 @@ impl Db {
     ) -> Result<Option<RegistrationRequest>, anyhow::Error> {
         let now = current_unix_timestamp()?;
 
-        let r = sqlx::query_as::<_, RegistrationRequest>(
-            "SELECT id, tg_user_id, tg_username, tg_display_name, status, telemt_username, secret, created_at FROM registration_requests WHERE id = ? AND status = 'pending'",
-        )
+        let sql = format!("{} WHERE id = ? AND status = '{}'", SELECT_REQUEST, STATUS_PENDING);
+        let r = sqlx::query_as::<_, RegistrationRequest>(&sql)
         .bind(id)
         .fetch_optional(&self.pool)
         .await?;
@@ -338,9 +357,8 @@ impl Db {
     pub async fn reject(&self, id: i64) -> Result<Option<RegistrationRequest>, anyhow::Error> {
         let now = current_unix_timestamp()?;
 
-        let r = sqlx::query_as::<_, RegistrationRequest>(
-            "SELECT id, tg_user_id, tg_username, tg_display_name, status, telemt_username, secret, created_at FROM registration_requests WHERE id = ? AND status = 'pending'",
-        )
+        let sql = format!("{} WHERE id = ? AND status = '{}'", SELECT_REQUEST, STATUS_PENDING);
+        let r = sqlx::query_as::<_, RegistrationRequest>(&sql)
         .bind(id)
         .fetch_optional(&self.pool)
         .await?;
@@ -432,9 +450,11 @@ impl Db {
         &self,
         tg_user_id: i64,
     ) -> Result<Option<(String, String)>, anyhow::Error> {
-        let r = sqlx::query_as::<_, RegistrationRequest>(
-            "SELECT id, tg_user_id, tg_username, tg_display_name, status, telemt_username, secret, created_at FROM registration_requests WHERE tg_user_id = ? AND status = 'approved'",
-        )
+        let sql = format!(
+            "{} WHERE tg_user_id = ? AND status = '{}'",
+            SELECT_REQUEST, STATUS_APPROVED
+        );
+        let r = sqlx::query_as::<_, RegistrationRequest>(&sql)
         .bind(tg_user_id)
         .fetch_optional(&self.pool)
         .await?;
@@ -445,9 +465,8 @@ impl Db {
         &self,
         tg_user_id: i64,
     ) -> Result<Option<RegistrationRequest>, anyhow::Error> {
-        let r = sqlx::query_as::<_, RegistrationRequest>(
-            "SELECT id, tg_user_id, tg_username, tg_display_name, status, telemt_username, secret, created_at FROM registration_requests WHERE tg_user_id = ?",
-        )
+        let sql = format!("{} WHERE tg_user_id = ?", SELECT_REQUEST);
+        let r = sqlx::query_as::<_, RegistrationRequest>(&sql)
         .bind(tg_user_id)
         .fetch_optional(&self.pool)
         .await?;
@@ -696,40 +715,24 @@ impl Db {
     }
 
     pub async fn admin_stats(&self) -> Result<AdminStats, anyhow::Error> {
-        let total = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM registration_requests")
-            .fetch_one(&self.pool)
-            .await?;
-        let pending = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM registration_requests WHERE status = ?",
+        let row = sqlx::query_as::<_, (i64, i64, i64, i64, i64)>(
+            "SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+                SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved,
+                SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejected,
+                SUM(CASE WHEN status = 'deleted' THEN 1 ELSE 0 END) AS deleted
+             FROM registration_requests",
         )
-        .bind(STATUS_PENDING)
-        .fetch_one(&self.pool)
-        .await?;
-        let approved = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM registration_requests WHERE status = ?",
-        )
-        .bind(STATUS_APPROVED)
-        .fetch_one(&self.pool)
-        .await?;
-        let rejected = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM registration_requests WHERE status = ?",
-        )
-        .bind(STATUS_REJECTED)
-        .fetch_one(&self.pool)
-        .await?;
-        let deleted = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM registration_requests WHERE status = ?",
-        )
-        .bind(STATUS_DELETED)
         .fetch_one(&self.pool)
         .await?;
 
         Ok(AdminStats {
-            total,
-            pending,
-            approved,
-            rejected,
-            deleted,
+            total: row.0,
+            pending: row.1,
+            approved: row.2,
+            rejected: row.3,
+            deleted: row.4,
         })
     }
 }

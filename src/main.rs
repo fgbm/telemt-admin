@@ -38,6 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         db_path = %config.db_path.display(),
         telemt_config_path = %config.telemt_config_path.display(),
         service_name = %config.service_name,
+        users_page_size = config.users_page_size,
         "Configuration loaded"
     );
 
