@@ -648,22 +648,51 @@ impl Db {
         Ok(rows)
     }
 
-    pub async fn list_active_users(
+    pub async fn count_active_users(&self) -> Result<i64, anyhow::Error> {
+        let total = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM registration_requests WHERE status = ?",
+        )
+        .bind(STATUS_APPROVED)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(total)
+    }
+
+    pub async fn list_active_users_page(
         &self,
         limit: i64,
+        offset: i64,
     ) -> Result<Vec<RegistrationRequest>, anyhow::Error> {
         let rows = sqlx::query_as::<_, RegistrationRequest>(
             "SELECT id, tg_user_id, tg_username, tg_display_name, status, telemt_username, secret, created_at
              FROM registration_requests
              WHERE status = ?
              ORDER BY created_at DESC
-             LIMIT ?",
+             LIMIT ? OFFSET ?",
         )
         .bind(STATUS_APPROVED)
         .bind(limit)
+        .bind(offset)
         .fetch_all(&self.pool)
         .await?;
         Ok(rows)
+    }
+
+    pub async fn get_active_user_by_tg_user(
+        &self,
+        tg_user_id: i64,
+    ) -> Result<Option<RegistrationRequest>, anyhow::Error> {
+        let row = sqlx::query_as::<_, RegistrationRequest>(
+            "SELECT id, tg_user_id, tg_username, tg_display_name, status, telemt_username, secret, created_at
+             FROM registration_requests
+             WHERE status = ? AND tg_user_id = ?
+             LIMIT 1",
+        )
+        .bind(STATUS_APPROVED)
+        .bind(tg_user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row)
     }
 
     pub async fn admin_stats(&self) -> Result<AdminStats, anyhow::Error> {

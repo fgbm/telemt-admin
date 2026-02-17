@@ -9,16 +9,21 @@ use crate::link::{build_proxy_link, generate_user_secret};
 use crate::service::ServiceController;
 use crate::telemt_cfg::TelemtConfig;
 use chrono::{DateTime, Local, Utc};
+use image::{DynamicImage, ImageFormat, Luma};
+use qrcode::QrCode;
+use std::io::Cursor;
 use std::collections::HashSet;
 use std::sync::Arc;
 use teloxide::dispatching::DpHandlerDescription;
 use teloxide::dptree;
 use teloxide::prelude::*;
 use teloxide::types::ParseMode;
+use teloxide::types::{InlineKeyboardMarkup, InputFile, MessageId};
 use teloxide::utils::command::BotCommands;
 use tokio::sync::Mutex;
 
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
+const USERS_PAGE_SIZE: i64 = 10;
 
 #[derive(Clone)]
 pub struct BotState {
@@ -195,8 +200,64 @@ fn parse_callback_request_id(data: &str, prefix: &str) -> Result<i64, anyhow::Er
         .map_err(|_| anyhow::anyhow!("Некорректный request_id"))
 }
 
+fn parse_callback_user_action(
+    data: &str,
+    prefix: &str,
+) -> Result<(i64, i64), anyhow::Error> {
+    let payload = data
+        .strip_prefix(prefix)
+        .ok_or_else(|| anyhow::anyhow!("Некорректный callback payload"))?;
+    let mut parts = payload.split(':');
+    let tg_user_id = parts
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("Не указан tg_user_id"))?
+        .parse::<i64>()
+        .map_err(|_| anyhow::anyhow!("Некорректный tg_user_id"))?;
+    let page = parts
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("Не указан номер страницы"))?
+        .parse::<i64>()
+        .map_err(|_| anyhow::anyhow!("Некорректный номер страницы"))?;
+    Ok((tg_user_id, page.max(1)))
+}
+
+fn parse_callback_page(data: &str, prefix: &str) -> Result<i64, anyhow::Error> {
+    data.strip_prefix(prefix)
+        .ok_or_else(|| anyhow::anyhow!("Некорректный callback payload"))?
+        .parse::<i64>()
+        .map(|page| page.max(1))
+        .map_err(|_| anyhow::anyhow!("Некорректный номер страницы"))
+}
+
 fn callback_message_target(q: &CallbackQuery) -> Option<(ChatId, teloxide::types::MessageId)> {
     q.message.as_ref().map(|msg| (msg.chat().id, msg.id()))
+}
+
+fn user_display_name(user: &RegistrationRequest) -> String {
+    user.tg_display_name
+        .clone()
+        .or_else(|| {
+            user.tg_username
+                .as_ref()
+                .map(|username| format!("@{}", username))
+        })
+        .or_else(|| user.telemt_username.clone())
+        .unwrap_or_else(|| format!("tg_{}", user.tg_user_id))
+}
+
+fn build_user_qr_png_bytes(payload: &str) -> Result<Vec<u8>, anyhow::Error> {
+    let qr = QrCode::new(payload.as_bytes())?;
+    let image = qr
+        .render::<Luma<u8>>()
+        .quiet_zone(true)
+        .min_dimensions(512, 512)
+        .build();
+    let mut bytes = Vec::new();
+    {
+        let mut cursor = Cursor::new(&mut bytes);
+        DynamicImage::ImageLuma8(image).write_to(&mut cursor, ImageFormat::Png)?;
+    }
+    Ok(bytes)
 }
 
 async fn approve_request_and_build_link(
@@ -1118,49 +1179,58 @@ async fn admin_show_pending(bot: &Bot, chat_id: ChatId, state: &BotState) -> Han
     Ok(())
 }
 
-async fn admin_show_users(bot: &Bot, chat_id: ChatId, state: &BotState) -> HandlerResult {
-    let users = state.db.list_active_users(20).await?;
-    if users.is_empty() {
-        bot.send_message(chat_id, "Активных пользователей нет.")
-            .reply_markup(crate::bot::keyboards::admin_menu())
-            .await?;
+async fn admin_show_users_page(
+    bot: &Bot,
+    chat_id: ChatId,
+    state: &BotState,
+    requested_page: i64,
+    message_id: Option<MessageId>,
+) -> HandlerResult {
+    let total_users = state.db.count_active_users().await?;
+    if total_users <= 0 {
+        let text = "Активных пользователей нет.";
+        if let Some(message_id) = message_id {
+            bot.edit_message_text(chat_id, message_id, text)
+                .reply_markup(InlineKeyboardMarkup::default())
+                .await?;
+        } else {
+            bot.send_message(chat_id, text)
+                .reply_markup(crate::bot::keyboards::admin_menu())
+                .await?;
+        }
         return Ok(());
     }
 
-    bot.send_message(
-        chat_id,
-        format!(
-            "Активные пользователи: {} (показаны последние {})",
-            users.len(),
-            users.len()
-        ),
-    )
-    .reply_markup(crate::bot::keyboards::admin_menu())
-    .await?;
+    let total_pages = ((total_users + USERS_PAGE_SIZE - 1) / USERS_PAGE_SIZE).max(1);
+    let page = requested_page.clamp(1, total_pages);
+    let offset = (page - 1) * USERS_PAGE_SIZE;
+    let users = state.db.list_active_users_page(USERS_PAGE_SIZE, offset).await?;
 
-    for user in users {
-        let display_name = user
-            .tg_display_name
-            .clone()
-            .or_else(|| {
-                user.tg_username
-                    .as_ref()
-                    .map(|username| format!("@{}", username))
-            })
-            .or_else(|| user.telemt_username.clone())
-            .unwrap_or_else(|| format!("tg_{}", user.tg_user_id));
+    let titles: Vec<(i64, String)> = users
+        .iter()
+        .map(|user| {
+            let display_name = user_display_name(user);
+            let short = if display_name.chars().count() > 40 {
+                format!("{}...", display_name.chars().take(37).collect::<String>())
+            } else {
+                display_name
+            };
+            (user.tg_user_id, format!("{} (id {})", short, user.tg_user_id))
+        })
+        .collect();
 
-        let text = format!(
-            "👤 {} (tg id: {})\nUsername: @{}\nИмя: {}\nСоздано: {}",
-            display_name,
-            user.tg_user_id,
-            user.tg_username.as_deref().unwrap_or("—"),
-            user.tg_display_name.as_deref().unwrap_or("—"),
-            format_timestamp(user.created_at),
-        );
-        bot.send_message(chat_id, text)
-            .reply_markup(crate::bot::keyboards::delete_user_button(user.tg_user_id))
+    let text = format!(
+        "👥 Активные пользователи\nВсего: {}\nСтраница: {}/{}\n\nНажмите на пользователя, чтобы открыть карточку.",
+        total_users, page, total_pages
+    );
+    let keyboard = crate::bot::keyboards::users_page_keyboard(&titles, page, total_pages);
+
+    if let Some(message_id) = message_id {
+        bot.edit_message_text(chat_id, message_id, text)
+            .reply_markup(keyboard)
             .await?;
+    } else {
+        bot.send_message(chat_id, text).reply_markup(keyboard).await?;
     }
     Ok(())
 }
@@ -1230,7 +1300,7 @@ async fn handle_menu_buttons(bot: Bot, msg: Message, state: BotState) -> Handler
             admin_show_pending(&bot, msg.chat.id, &state).await?;
         }
         crate::bot::keyboards::BTN_ADMIN_USERS if is_admin => {
-            admin_show_users(&bot, msg.chat.id, &state).await?;
+            admin_show_users_page(&bot, msg.chat.id, &state, 1, None).await?;
         }
         crate::bot::keyboards::BTN_ADMIN_SERVICE if is_admin => {
             admin_show_service_panel(&bot, msg.chat.id, &state).await?;
@@ -1271,19 +1341,27 @@ async fn handle_menu_buttons(bot: Bot, msg: Message, state: BotState) -> Handler
     Ok(())
 }
 
-async fn callback_delete_user(bot: Bot, q: CallbackQuery, state: BotState) -> HandlerResult {
-    let callback_id = q.id.clone();
-    let admin_id = q.from.id.0 as i64;
-    if !state.config.is_admin(admin_id) {
-        bot.answer_callback_query(callback_id)
-            .text("Недостаточно прав")
-            .show_alert(true)
-            .await?;
-        return Ok(());
-    }
+fn render_user_card_text(user: &RegistrationRequest, page: i64) -> String {
+    format!(
+        "👤 Карточка пользователя\n\n\
+         Страница списка: {}\n\
+         TG ID: {}\n\
+         Username: @{}\n\
+         Имя: {}\n\
+         Статус: {}\n\
+         Telemt username: {}\n\
+         Создано: {}",
+        page,
+        user.tg_user_id,
+        user.tg_username.as_deref().unwrap_or("—"),
+        user.tg_display_name.as_deref().unwrap_or("—"),
+        user.status,
+        user.telemt_username.as_deref().unwrap_or("—"),
+        format_timestamp(user.created_at),
+    )
+}
 
-    let data = q.data.as_deref().unwrap_or("");
-    let tg_user_id = parse_callback_request_id(data, "delete_user:")?;
+async fn perform_hard_ban(state: &BotState, tg_user_id: i64) -> Result<String, anyhow::Error> {
     let telemt_user = telemt_username(tg_user_id);
     let removed_from_cfg = state.telemt_cfg.remove_user(&telemt_user)?;
     let removed_from_db = state.db.deactivate_user(tg_user_id).await?;
@@ -1299,11 +1377,164 @@ async fn callback_delete_user(bot: Bot, q: CallbackQuery, state: BotState) -> Ha
         }
     }
 
-    let status_text = if removed_from_cfg || removed_from_db {
-        format!("Пользователь {} удалён", telemt_user)
+    if removed_from_cfg || removed_from_db {
+        Ok(format!("Пользователь {} удалён", telemt_user))
     } else {
-        format!("Пользователь {} не найден", telemt_user)
+        Ok(format!("Пользователь {} не найден", telemt_user))
+    }
+}
+
+async fn callback_users_page(bot: Bot, q: CallbackQuery, state: BotState) -> HandlerResult {
+    let callback_id = q.id.clone();
+    let admin_id = q.from.id.0 as i64;
+    if !state.config.is_admin(admin_id) {
+        bot.answer_callback_query(callback_id)
+            .text("Недостаточно прав")
+            .show_alert(true)
+            .await?;
+        return Ok(());
+    }
+
+    let data = q.data.as_deref().unwrap_or("");
+    let page = parse_callback_page(data, "users_page:")?;
+    bot.answer_callback_query(callback_id).await?;
+
+    if let Some((chat_id, message_id)) = callback_message_target(&q) {
+        admin_show_users_page(&bot, chat_id, &state, page, Some(message_id)).await?;
+    }
+    Ok(())
+}
+
+async fn callback_user_open(bot: Bot, q: CallbackQuery, state: BotState) -> HandlerResult {
+    let callback_id = q.id.clone();
+    let admin_id = q.from.id.0 as i64;
+    if !state.config.is_admin(admin_id) {
+        bot.answer_callback_query(callback_id)
+            .text("Недостаточно прав")
+            .show_alert(true)
+            .await?;
+        return Ok(());
+    }
+
+    let data = q.data.as_deref().unwrap_or("");
+    let (tg_user_id, page) = parse_callback_user_action(data, "user_open:")?;
+    let user = state.db.get_active_user_by_tg_user(tg_user_id).await?;
+    let Some(user) = user else {
+        bot.answer_callback_query(callback_id)
+            .text("Пользователь уже неактивен")
+            .show_alert(true)
+            .await?;
+        return Ok(());
     };
+
+    bot.answer_callback_query(callback_id)
+        .text("Открыта карточка")
+        .await?;
+    if let Some((chat_id, message_id)) = callback_message_target(&q) {
+        bot.edit_message_text(chat_id, message_id, render_user_card_text(&user, page))
+            .reply_markup(crate::bot::keyboards::user_card_keyboard(user.tg_user_id, page))
+            .await?;
+    }
+    Ok(())
+}
+
+async fn callback_user_view(bot: Bot, q: CallbackQuery, state: BotState) -> HandlerResult {
+    let callback_id = q.id.clone();
+    let admin_id = q.from.id.0 as i64;
+    if !state.config.is_admin(admin_id) {
+        bot.answer_callback_query(callback_id)
+            .text("Недостаточно прав")
+            .show_alert(true)
+            .await?;
+        return Ok(());
+    }
+
+    let data = q.data.as_deref().unwrap_or("");
+    let (tg_user_id, _) = parse_callback_user_action(data, "user_view:")?;
+    let user = state.db.get_active_user_by_tg_user(tg_user_id).await?;
+    let Some(user) = user else {
+        bot.answer_callback_query(callback_id)
+            .text("Пользователь уже неактивен")
+            .show_alert(true)
+            .await?;
+        return Ok(());
+    };
+
+    let Some(secret) = user.secret.as_deref() else {
+        bot.answer_callback_query(callback_id)
+            .text("Не найден секрет пользователя")
+            .show_alert(true)
+            .await?;
+        return Ok(());
+    };
+
+    let params = state.telemt_cfg.read_link_params()?;
+    let link = build_proxy_link(&params, secret)?;
+    let caption_name = user_display_name(&user);
+    let text = format!(
+        "Данные пользователя {}\nTG ID: {}\n\nСсылка на прокси:\n{}",
+        caption_name, user.tg_user_id, link
+    );
+    let qr_png = build_user_qr_png_bytes(&link)?;
+
+    bot.answer_callback_query(callback_id)
+        .text("Отправляю ссылку и QR")
+        .await?;
+
+    if let Some((chat_id, _)) = callback_message_target(&q) {
+        bot.send_message(chat_id, text).await?;
+        bot.send_photo(
+            chat_id,
+            InputFile::memory(qr_png).file_name(format!("telemt-proxy-{}.png", user.tg_user_id)),
+        )
+        .caption(format!(
+            "QR для ручной пересылки пользователю {} (id {}).",
+            caption_name, user.tg_user_id
+        ))
+        .await?;
+    }
+    Ok(())
+}
+
+async fn callback_user_ban(bot: Bot, q: CallbackQuery, state: BotState) -> HandlerResult {
+    let callback_id = q.id.clone();
+    let admin_id = q.from.id.0 as i64;
+    if !state.config.is_admin(admin_id) {
+        bot.answer_callback_query(callback_id)
+            .text("Недостаточно прав")
+            .show_alert(true)
+            .await?;
+        return Ok(());
+    }
+
+    let data = q.data.as_deref().unwrap_or("");
+    let (tg_user_id, page) = parse_callback_user_action(data, "user_ban:")?;
+    let status_text = perform_hard_ban(&state, tg_user_id).await?;
+    bot.answer_callback_query(callback_id.clone())
+        .text(status_text.clone())
+        .await?;
+
+    if let Some((chat_id, message_id)) = callback_message_target(&q) {
+        bot.send_message(chat_id, status_text).await?;
+        admin_show_users_page(&bot, chat_id, &state, page, Some(message_id)).await?;
+    }
+    Ok(())
+}
+
+async fn callback_delete_user(bot: Bot, q: CallbackQuery, state: BotState) -> HandlerResult {
+    let callback_id = q.id.clone();
+    let admin_id = q.from.id.0 as i64;
+    if !state.config.is_admin(admin_id) {
+        bot.answer_callback_query(callback_id)
+            .text("Недостаточно прав")
+            .show_alert(true)
+            .await?;
+        return Ok(());
+    }
+
+    let data = q.data.as_deref().unwrap_or("");
+    let tg_user_id = parse_callback_request_id(data, "delete_user:")?;
+    let status_text = perform_hard_ban(&state, tg_user_id).await?;
 
     bot.answer_callback_query(callback_id)
         .text(status_text.clone())
@@ -1373,6 +1604,58 @@ pub fn schema() -> dptree::Handler<
         .branch(dptree::case![BotCommand::Token].endpoint(cmd_token));
 
     let callback_handler = Update::filter_callback_query()
+        .branch(
+            dptree::filter_map(|q: CallbackQuery| {
+                if q.data
+                    .as_deref()
+                    .is_some_and(|payload| payload.starts_with("users_page:"))
+                {
+                    Some(q)
+                } else {
+                    None
+                }
+            })
+            .endpoint(callback_users_page),
+        )
+        .branch(
+            dptree::filter_map(|q: CallbackQuery| {
+                if q.data
+                    .as_deref()
+                    .is_some_and(|payload| payload.starts_with("user_open:"))
+                {
+                    Some(q)
+                } else {
+                    None
+                }
+            })
+            .endpoint(callback_user_open),
+        )
+        .branch(
+            dptree::filter_map(|q: CallbackQuery| {
+                if q.data
+                    .as_deref()
+                    .is_some_and(|payload| payload.starts_with("user_view:"))
+                {
+                    Some(q)
+                } else {
+                    None
+                }
+            })
+            .endpoint(callback_user_view),
+        )
+        .branch(
+            dptree::filter_map(|q: CallbackQuery| {
+                if q.data
+                    .as_deref()
+                    .is_some_and(|payload| payload.starts_with("user_ban:"))
+                {
+                    Some(q)
+                } else {
+                    None
+                }
+            })
+            .endpoint(callback_user_ban),
+        )
         .branch(
             dptree::filter_map(|q: CallbackQuery| {
                 if q.data
