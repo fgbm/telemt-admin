@@ -10,6 +10,7 @@ pub const BTN_ADMIN_USERS: &str = "👥 Список пользователей"
 pub const BTN_ADMIN_SERVICE: &str = "⚙️ Статус сервиса";
 pub const BTN_ADMIN_STATS: &str = "📊 Статистика";
 pub const BTN_ADMIN_CREATE_HINT: &str = "➕ Создать @username";
+pub const BTN_ADMIN_HELP: &str = "❓ Справка";
 
 pub fn user_menu() -> KeyboardMarkup {
     KeyboardMarkup::new(vec![vec![
@@ -31,6 +32,7 @@ pub fn admin_menu() -> KeyboardMarkup {
             KeyboardButton::new(BTN_ADMIN_STATS),
         ],
         vec![KeyboardButton::new(BTN_ADMIN_CREATE_HINT)],
+        vec![KeyboardButton::new(BTN_ADMIN_HELP)],
     ])
     .resize_keyboard()
     .persistent()

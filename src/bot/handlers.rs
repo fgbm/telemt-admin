@@ -1211,6 +1211,9 @@ async fn handle_menu_buttons(bot: Bot, msg: Message, state: BotState) -> Handler
             .reply_markup(crate::bot::keyboards::admin_menu())
             .await?;
         }
+        crate::bot::keyboards::BTN_ADMIN_HELP if is_admin => {
+            cmd_help(bot, msg, state).await?;
+        }
         _ => {
             let text = if is_admin {
                 "Не понял команду. Используйте кнопки админ-меню ниже."
