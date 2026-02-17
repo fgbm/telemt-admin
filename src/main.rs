@@ -45,15 +45,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let telemt_cfg = Arc::new(telemt_cfg::TelemtConfig::new(&config.telemt_config_path));
     let service = service::ServiceController::new(&config.service_name);
 
+    let bot = Bot::new(token);
+    let bot_username = match bot.get_me().await {
+        Ok(me) => me.user.username.clone(),
+        Err(error) => {
+            tracing::warn!(
+                error = %error,
+                "Не удалось получить username бота через getMe"
+            );
+            None
+        }
+    };
+
     let state = bot::handlers::BotState {
         config,
         db,
         telemt_cfg,
         service,
+        bot_username,
         awaiting_invite_users: Arc::new(Mutex::new(std::collections::HashSet::new())),
     };
-
-    let bot = Bot::new(token);
     tracing::info!("Dispatcher initialized, bot is ready");
 
     Dispatcher::builder(bot, bot::handlers::schema())

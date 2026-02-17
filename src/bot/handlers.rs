@@ -25,6 +25,7 @@ pub struct BotState {
     pub db: Arc<Db>,
     pub telemt_cfg: Arc<TelemtConfig>,
     pub service: ServiceController,
+    pub bot_username: Option<String>,
     pub awaiting_invite_users: Arc<Mutex<HashSet<i64>>>,
 }
 
@@ -99,6 +100,11 @@ fn format_mode(auto_approve: bool) -> &'static str {
     } else {
         "Ручной ✅"
     }
+}
+
+fn build_bot_start_link(bot_username: &str, token: &str) -> String {
+    let normalized = bot_username.trim_start_matches('@');
+    format!("https://t.me/{}?start={}", normalized, token)
 }
 
 async fn mark_user_waiting_for_invite(state: &BotState, tg_user_id: i64) {
@@ -880,14 +886,27 @@ async fn cmd_token(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                 .create_invite_token(days, auto_approve, max_uses, created_by)
                 .await?;
 
+            let link_line = state
+                .bot_username
+                .as_deref()
+                .map(|bot_username| {
+                    let invite_link = build_bot_start_link(bot_username, &token.token);
+                    format!("Ссылка: `{}`\n", invite_link)
+                })
+                .unwrap_or_else(|| {
+                    "Ссылка: недоступна (у бота не задан username в Telegram).\n".to_string()
+                });
+
             let response = format!(
                 "✅ Токен создан:\n\
-                 Код: {}\n\
+                 Код: `{}`\n\
+                 {}\
                  Режим: {}\n\
                  Действует до: {}\n\
                  Лимит использований: {}\n\
-                 Используйте команду /token revoke {} для отзыва.",
+                 Используйте команду `/token revoke {}` для отзыва.",
                 token.token,
+                link_line,
                 format_mode(token.auto_approve),
                 format_date(token.expires_at),
                 token
