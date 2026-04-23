@@ -62,7 +62,7 @@ pub(crate) fn build_summary_from_user_list(
             total_octets: u.total_octets,
         })
         .collect();
-    by_connections.sort_by(|a, b| b.current_connections.cmp(&a.current_connections));
+    by_connections.sort_by_key(|b| std::cmp::Reverse(b.current_connections));
     let top_by_connections = by_connections.into_iter().take(limit).collect();
 
     let mut by_throughput: Vec<_> = users
@@ -73,7 +73,7 @@ pub(crate) fn build_summary_from_user_list(
             total_octets: u.total_octets,
         })
         .collect();
-    by_throughput.sort_by(|a, b| b.total_octets.cmp(&a.total_octets));
+    by_throughput.sort_by_key(|b| std::cmp::Reverse(b.total_octets));
     let top_by_throughput = by_throughput.into_iter().take(limit).collect();
 
     let total_connections: u64 = users.iter().map(|u| u.current_connections).sum();
