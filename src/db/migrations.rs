@@ -1,5 +1,18 @@
 use crate::db::Db;
 
+const ALLOWED_TABLES: &[&str] = &["registration_requests", "invite_tokens"];
+const ALLOWED_COLUMNS: &[&str] = &[
+    "tg_display_name",
+    "backend_mode",
+    "last_sync_error",
+    "last_seen_revision",
+    "last_synced_at",
+    "invite_token_id",
+    "max_usage",
+    "is_active",
+    "revoked_at",
+];
+
 impl Db {
     pub(crate) async fn migrate(&self) -> Result<(), anyhow::Error> {
         sqlx::query(
@@ -124,6 +137,8 @@ impl Db {
         column: &str,
         sql_type: &str,
     ) -> Result<(), anyhow::Error> {
+        // table и column — внутренние константы, заданные в коде миграций;
+        // для metadata-запроса format! приемлем.
         let count = sqlx::query_scalar::<_, i64>(&format!(
             "SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name = '{}'",
             table, column
@@ -131,6 +146,18 @@ impl Db {
         .fetch_one(&self.pool)
         .await?;
         if count == 0 {
+            if !ALLOWED_TABLES.contains(&table) {
+                anyhow::bail!(
+                    "ALTER TABLE: таблица '{}' не входит в белый список",
+                    table
+                );
+            }
+            if !ALLOWED_COLUMNS.contains(&column) {
+                anyhow::bail!(
+                    "ALTER TABLE: колонка '{}' не входит в белый список",
+                    column
+                );
+            }
             sqlx::query(&format!(
                 "ALTER TABLE {} ADD COLUMN {} {}",
                 table, column, sql_type

@@ -12,7 +12,6 @@ use sqlx::error::ErrorKind;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use std::fmt;
 use std::path::Path;
-use std::str::FromStr;
 use thiserror::Error;
 
 /// Результат регистрации.
@@ -197,7 +196,8 @@ impl Db {
                 .map_err(|e| anyhow::anyhow!("Не удалось создать директорию для БД: {}", e))?;
         }
 
-        let opts = SqliteConnectOptions::from_str(&format!("sqlite:{}", path.display()))?
+        let opts = SqliteConnectOptions::new()
+            .filename(path)
             .create_if_missing(true);
 
         let pool = SqlitePool::connect_with(opts)

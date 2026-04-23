@@ -16,10 +16,11 @@ cargo check
 
 CI/CD:
 
-- `.github/workflows/ci.yml` проверяет `cargo test --locked`, `cargo check --locked` и `cargo clippy --all-targets -- -D warnings`;
-- `.github/workflows/release.yml` собирает релизы для Linux и Windows по тегам `v*.*.*` и публикует Docker-образ в GHCR (`ghcr.io/<owner>/telemt-admin`);
+- `.github/workflows/ci.yml` проверяет `cargo test --locked`, `cargo check --locked`, `cargo clippy --all-targets -- -D warnings` и `cargo audit --deny warnings` (см. `.cargo/audit.toml`);
+- `.github/workflows/release.yml` собирает релизы для Linux x86_64, Linux arm64 и Windows x86_64 по тегам `v*.*.*`; публикует multi-platform Docker-образ (linux/amd64, linux/arm64) в GHCR (`ghcr.io/<owner>/telemt-admin`);
 - release workflow не дублирует `clippy`, а предполагает, что релизный тег создаётся поверх кода, уже прошедшего основной CI;
 - changelog формируется через `git-cliff` и Conventional Commits.
+- релизные артефакты публикуются вместе с файлами `.sha256` (SHA-256 checksum); self-update проверяет контрольную сумму перед установкой;
 - `scripts/install.sh` ориентирован на Linux x86_64 (glibc) + `systemd` и скачивает release-артефакты из GitHub.
 - контейнерная сборка: корневой `Dockerfile`, пример `deploy/compose/docker-compose.telemt-admin.example.yml`;
 - overlay конфигурации через whitelist `TELEMT_ADMIN__*` (см. `docs/adr/004-config-sources-and-docker-defaults.md`).

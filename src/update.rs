@@ -23,12 +23,11 @@ struct GitHubRelease {
 struct GitHubAsset {
     name: String,
     browser_download_url: String,
-    #[serde(default)]
-    digest: Option<String>,
 }
 
 /// Имя asset для Linux x86_64.
 const ASSET_LINUX_X86_64: &str = "telemt-admin-linux-x86_64.tar.gz";
+const ASSET_LINUX_X86_64_SHA256: &str = "telemt-admin-linux-x86_64.tar.gz.sha256";
 
 /// Имя asset для Windows x86_64.
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
@@ -134,23 +133,6 @@ pub async fn run_check_update() -> Result<()> {
     Ok(())
 }
 
-/// Парсит digest в формате "sha256:hex" и возвращает байты хеша.
-fn parse_digest(digest: &str) -> Option<[u8; 32]> {
-    let hex_str = digest.strip_prefix("sha256:")?;
-    if hex_str.len() != 64 {
-        return None;
-    }
-    let mut bytes = [0u8; 32];
-    for (i, chunk) in hex_str.as_bytes().chunks(2).enumerate() {
-        if chunk.len() != 2 {
-            return None;
-        }
-        let s = std::str::from_utf8(chunk).ok()?;
-        bytes[i] = u8::from_str_radix(s, 16).ok()?;
-    }
-    Some(bytes)
-}
-
 /// Обновляет бинарник до последней версии (только Linux x86_64).
 pub async fn run_self_update() -> Result<()> {
     if !is_self_update_supported() {
@@ -183,6 +165,12 @@ pub async fn run_self_update() -> Result<()> {
         .find(|a| a.name == ASSET_LINUX_X86_64)
         .context("Asset для Linux x86_64 не найден в релизе")?;
 
+    let sha_asset = release
+        .assets
+        .iter()
+        .find(|a| a.name == ASSET_LINUX_X86_64_SHA256)
+        .context("SHA-256 checksum для Linux x86_64 не найден в релизе")?;
+
     let current_exe = std::env::current_exe().context("Не удалось определить путь к бинарнику")?;
     let exe_dir = current_exe
         .parent()
@@ -192,6 +180,23 @@ pub async fn run_self_update() -> Result<()> {
         .user_agent(format!("telemt-admin/{}", env!("CARGO_PKG_VERSION")))
         .build()
         .context("Создание HTTP-клиента")?;
+
+    println!("Скачивание {}...", sha_asset.browser_download_url);
+    let sha256_text = client
+        .get(&sha_asset.browser_download_url)
+        .send()
+        .await
+        .context("Запрос SHA-256 файла")?
+        .error_for_status()
+        .context("Ошибка загрузки SHA-256 файла")?
+        .text()
+        .await
+        .context("Чтение SHA-256 файла")?;
+
+    let expected_hash = sha256_text
+        .split_whitespace()
+        .next()
+        .context("Некорректный формат SHA-256 файла")?;
 
     println!("Скачивание {}...", asset.browser_download_url);
     let archive_bytes = client
@@ -206,17 +211,25 @@ pub async fn run_self_update() -> Result<()> {
         .context("Чтение тела ответа")?;
 
     let archive_bytes = archive_bytes.to_vec();
-    let archive_bytes = if let Some(ref digest_str) = asset.digest {
-        verify_download_digest(archive_bytes, digest_str.clone()).await?
-    } else {
-        eprintln!("Предупреждение: digest не указан в релизе, проверка SHA-256 пропущена.");
-        archive_bytes
-    };
+    let expected_hash = expected_hash.to_string();
+    let verified_bytes = tokio::task::spawn_blocking(move || {
+        let mut hasher = Sha256::new();
+        hasher.update(&archive_bytes);
+        let actual_hash = format!("{:x}", hasher.finalize());
+        if actual_hash != expected_hash {
+            anyhow::bail!(
+                "Контрольная сумма архива не совпадает. Обновление отменено из соображений безопасности."
+            );
+        }
+        Ok::<_, anyhow::Error>(archive_bytes)
+    })
+    .await
+    .context("Blocking SHA-256 verification task failed")??;
 
     install_downloaded_release(
         exe_dir.to_path_buf(),
         current_exe.clone(),
-        archive_bytes,
+        verified_bytes,
     )
     .await?;
 
@@ -225,24 +238,6 @@ pub async fn run_self_update() -> Result<()> {
         latest
     );
     Ok(())
-}
-
-async fn verify_download_digest(archive_bytes: Vec<u8>, digest: String) -> Result<Vec<u8>> {
-    tokio::task::spawn_blocking(move || {
-        if let Some(expected) = parse_digest(&digest) {
-            let mut hasher = Sha256::new();
-            hasher.update(&archive_bytes);
-            let actual: [u8; 32] = hasher.finalize().into();
-            if actual != expected {
-                anyhow::bail!(
-                    "Контрольная сумма архива не совпадает. Обновление отменено из соображений безопасности."
-                );
-            }
-        }
-        Ok(archive_bytes)
-    })
-    .await
-    .context("Blocking SHA-256 verification task failed")?
 }
 
 async fn install_downloaded_release(

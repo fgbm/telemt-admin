@@ -237,8 +237,29 @@ impl TelemtConfig {
                 err
             ));
         }
-        std::fs::rename(&tmp, &self.path)
-            .map_err(|e| anyhow::anyhow!("Не удалось переименовать временный файл: {}", e))?;
+        if let Err(e) = std::fs::rename(&tmp, &self.path) {
+            if e.raw_os_error() == Some(18) {
+                // ERROR_INVALID_PARAMETER / EXDEV — возможно, tmp и target на разных ФС.
+                // Fallback: скопировать содержимое и удалить tmp.
+                tracing::warn!(
+                    tmp_path = %tmp.display(),
+                    target_path = %self.path.display(),
+                    "Cross-device rename failed; falling back to copy"
+                );
+                std::fs::copy(&tmp, &self.path).map_err(|e| {
+                    anyhow::anyhow!(
+                        "Не удалось скопировать временный файл на целевой путь: {}",
+                        e
+                    )
+                })?;
+                let _ = std::fs::remove_file(&tmp);
+            } else {
+                return Err(anyhow::anyhow!(
+                    "Не удалось переименовать временный файл: {}",
+                    e
+                ));
+            }
+        }
         tracing::debug!(
             tmp_path = %tmp.display(),
             target_path = %self.path.display(),

@@ -37,3 +37,8 @@ jobs:
 
       - name: Cargo clippy
         run: cargo clippy --all-targets -- -D warnings
+
+      - name: Cargo audit
+        run: |
+          cargo install cargo-audit
+          cargo audit --deny warnings

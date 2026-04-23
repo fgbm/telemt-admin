@@ -1,0 +1,6 @@
+[advisories]
+# RUSTSEC-2023-0071: Marvin Attack in `rsa` crate.
+# This vulnerability is pulled in via `sqlx-mysql`, which is a transitive dependency
+# of `sqlx` macros. We only use the `sqlite` feature of `sqlx` at runtime,
+# so the `rsa` code path is never exercised.
+ignore = ["RUSTSEC-2023-0071"]

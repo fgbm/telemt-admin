@@ -137,12 +137,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     monitor::spawn_monitor(bot.clone(), state.clone());
     tracing::info!("Dispatcher initialized, bot is ready");
 
-    Dispatcher::builder(bot, bot::handlers::schema())
+    let state_for_cleanup = state.clone();
+    let mut dispatcher = Dispatcher::builder(bot, bot::handlers::schema())
         .dependencies(dptree::deps![state])
-        .enable_ctrlc_handler()
-        .build()
-        .dispatch()
-        .await;
+        .build();
+
+    let shutdown_token = dispatcher.shutdown_token().clone();
+    tokio::spawn(async move {
+        match tokio::signal::ctrl_c().await {
+            Ok(()) => {
+                tracing::info!("Received Ctrl-C, shutting down...");
+                let _ = shutdown_token.shutdown();
+            }
+            Err(err) => {
+                tracing::error!("Failed to listen for ctrl-c: {}", err);
+            }
+        }
+    });
+
+    dispatcher.dispatch().await;
+
+    state_for_cleanup.db.pool.close().await;
+    tracing::info!("Database pool closed");
 
     Ok(())
 }

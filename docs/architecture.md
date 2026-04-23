@@ -2,10 +2,10 @@
 
 Основные модули:
 
-- `src/main.rs` — инициализация конфига, БД, состояния бота и `Dispatcher`.
+- `src/main.rs` — инициализация конфига, БД, состояния бота и `Dispatcher`; graceful shutdown по `Ctrl-C` с закрытием пула SQLite.
 - `src/config.rs` — загрузка `telemt-admin.toml`, дефолты и валидация (в т.ч. `[bot_messages]`).
 - `src/env_config_overlay.rs` — whitelist overrides `TELEMT_ADMIN__*` поверх TOML.
-- `src/monitor.rs` — фоновый polling `telemt` control API и push-уведомления администраторам.
+- `src/monitor.rs` — фоновый polling `telemt` control API и push-уведомления администраторам; дедупликация одинаковых алертов с интервалом 5 минут.
 - `src/db.rs` — корневой модуль SQLite-слоя с общими типами и публичным API.
 - `src/db/migrations.rs` — мягкие миграции схемы и bootstrap БД.
 - `src/db/registration.rs` — заявки, пользователи и переходы `pending/approved/rejected/deleted`.
@@ -29,6 +29,15 @@
 - `src/bot/handlers/actions/broadcast.rs` — рассылка approved-пользователям и итоговая сводка по доставке.
 - `src/bot/handlers/menu.rs` — текстовый ввод для активного wizard-state.
 - `src/bot/keyboards.rs` — inline-клавиатуры.
+- `src/bot/handlers/screens/mod.rs` — общие утилиты рендеринга экранов (`upsert_screen`, `page_bounds`, `compact_line`).
+- `src/bot/handlers/screens/home.rs` — стартовые экраны админа и пользователя, гайд.
+- `src/bot/handlers/screens/tokens.rs` — список токенов, карточка токена, подтверждение отзыва.
+- `src/bot/handlers/screens/users.rs` — список пользователей, карточка пользователя, QR, подтверждение удаления.
+- `src/bot/handlers/screens/pending.rs` — список заявок и карточка pending-заявки.
+- `src/bot/handlers/screens/stats.rs` — сводка статистики и live-диагностика.
+- `src/bot/handlers/screens/service.rs` — service panel и подтверждение действий над сервисом.
+- `src/bot/handlers/screens/connections.rs` — экран top-пользователей по соединениям/трафику.
+- `src/bot/handlers/screens/groups.rs` — меню групп и карточка группы.
 
 Связанные документы:
 
@@ -54,7 +63,8 @@
 Границы слоёв:
 
 - `src/db/*.rs` возвращают данные и доменные состояния, а не готовую разметку экранов.
-- `src/bot/handlers/screens.rs` и `src/bot/keyboards.rs` отвечают за presentation.
+- `src/bot/handlers/screens/` — presentation-слой экранов бота (home, tokens, users, pending, stats, service, connections, groups) через `screens/mod.rs`;
+- `src/bot/keyboards.rs` отвечает за inline-клавиатуры.
 - orchestration уровня “БД + telemt backend + Telegram-ответ” лучше держать в action/use-case функциях, а не размазывать по callback/router-коду.
 - service panel, connections summary и user card должны загружать данные через `actions/*`, а не собирать их напрямую внутри `screens`.
 - parsing и применение wizard-значений для сроков/лимитов лучше держать рядом с use-case уровнем, а не размазывать по callback payload.

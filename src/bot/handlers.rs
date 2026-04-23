@@ -12,7 +12,7 @@ mod commands;
 mod format;
 #[path = "handlers/menu.rs"]
 mod menu;
-#[path = "handlers/screens.rs"]
+#[path = "handlers/screens/mod.rs"]
 mod screens;
 #[path = "handlers/shared.rs"]
 mod shared;

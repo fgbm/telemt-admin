@@ -12,6 +12,8 @@ struct MonitorState {
     upstream_unhealthy_total: Option<u64>,
     kdf_state: Option<String>,
     timeskew_state: Option<String>,
+    last_notification_text: Option<String>,
+    last_notification_at: Option<tokio::time::Instant>,
 }
 
 #[derive(Debug, Clone)]
@@ -78,7 +80,7 @@ async fn poll_once(
                 &error.to_string(),
             );
             monitor_state.api_available = Some(false);
-            deliver_notifications(bot, state, notifications).await;
+            deliver_notifications(bot, state, monitor_state, notifications).await;
         }
     }
     Ok(())
@@ -97,7 +99,7 @@ async fn handle_snapshot(
         state.config.notifications.notify_on_runtime_alerts,
     );
     apply_snapshot_state(monitor_state, snapshot);
-    deliver_notifications(bot, state, notifications).await;
+    deliver_notifications(bot, state, monitor_state, notifications).await;
     Ok(())
 }
 
@@ -233,10 +235,20 @@ fn apply_snapshot_state(monitor_state: &mut MonitorState, snapshot: TelemtMonito
 async fn deliver_notifications(
     bot: &Bot,
     state: &BotState,
+    monitor_state: &mut MonitorState,
     notifications: Vec<MonitorNotification>,
 ) {
     for notification in notifications {
-        notify_admins(bot, state, notification.text).await;
+        if let Some(ref last_text) = monitor_state.last_notification_text
+            && last_text == &notification.text
+            && let Some(last_at) = monitor_state.last_notification_at
+            && last_at.elapsed() < std::time::Duration::from_secs(300)
+        {
+            continue;
+        }
+        notify_admins(bot, state, notification.text.clone()).await;
+        monitor_state.last_notification_text = Some(notification.text);
+        monitor_state.last_notification_at = Some(tokio::time::Instant::now());
     }
 }
 
