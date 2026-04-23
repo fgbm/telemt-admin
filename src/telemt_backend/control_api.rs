@@ -15,7 +15,7 @@ use super::api_dto::{
     SecurityPostureData, StatsSummaryData, SystemInfoData, UpstreamQualityTop, UserInfo,
 };
 use super::legacy::LegacyTelemtBackend;
-use super::mappers::{map_api_user_info, map_connection_top_user, pick_best_link};
+use super::mappers::{build_summary_from_user_list, map_api_user_info, map_connection_top_user, pick_best_link};
 use super::types::{
     DeleteUserResult, ProvisionedUser, TelemtApiError, TelemtBackendMode, TelemtConnectionsSummary,
     TelemtMonitorSnapshot, TelemtRuntimeEvent, TelemtRuntimeSnapshot, TelemtStatsSummary,
@@ -247,28 +247,106 @@ impl ApiTelemtBackend {
         let response = self
             .client
             .get_success::<RuntimeConnectionsSummaryTop>(&path)
+            .await;
+
+        match response {
+            Ok(response) => {
+                if let Some(data) = response.data.data {
+                    let has_top_data = !data.top.by_connections.is_empty()
+                        || !data.top.by_throughput.is_empty();
+                    if has_top_data {
+                        return Ok(Some(TelemtConnectionsSummary {
+                            current_connections: data.totals.current_connections,
+                            current_connections_me: data.totals.current_connections_me,
+                            current_connections_direct: data.totals.current_connections_direct,
+                            active_users: data.totals.active_users,
+                            top_by_connections: data
+                                .top
+                                .by_connections
+                                .into_iter()
+                                .map(map_connection_top_user)
+                                .collect(),
+                            top_by_throughput: data
+                                .top
+                                .by_throughput
+                                .into_iter()
+                                .map(map_connection_top_user)
+                                .collect(),
+                        }));
+                    }
+
+                    // Runtime edge вернул totals, но пустые top-списки → fallback только для tops
+                    match self.build_connections_summary_from_users(limit).await {
+                        Ok(fallback) => {
+                            return Ok(Some(TelemtConnectionsSummary {
+                                current_connections: data.totals.current_connections,
+                                current_connections_me: data.totals.current_connections_me,
+                                current_connections_direct: data.totals.current_connections_direct,
+                                active_users: data.totals.active_users,
+                                top_by_connections: fallback.top_by_connections,
+                                top_by_throughput: fallback.top_by_throughput,
+                            }));
+                        }
+                        Err(error) => {
+                            tracing::warn!(error = %error, "fallback на список пользователей не сработал, возвращаем runtime edge данные без top");
+                            return Ok(Some(TelemtConnectionsSummary {
+                                current_connections: data.totals.current_connections,
+                                current_connections_me: data.totals.current_connections_me,
+                                current_connections_direct: data.totals.current_connections_direct,
+                                active_users: data.totals.active_users,
+                                top_by_connections: Vec::new(),
+                                top_by_throughput: Vec::new(),
+                            }));
+                        }
+                    }
+                }
+
+                // data == null → полный fallback
+                let reason = response.data.reason.as_deref().unwrap_or("unknown");
+                tracing::debug!(
+                    reason = reason,
+                    "runtime edge connections summary unavailable, trying fallback"
+                );
+                match self.build_connections_summary_from_users(limit).await {
+                    Ok(summary) => Ok(Some(summary)),
+                    Err(error) => Err(anyhow!(
+                        "Runtime edge недоступен ({}), fallback на список пользователей тоже не сработал: {}",
+                        reason,
+                        error
+                    )),
+                }
+            }
+            Err(error) => {
+                tracing::warn!(
+                    error = %error,
+                    "runtime edge connections summary failed, trying fallback"
+                );
+                match self.build_connections_summary_from_users(limit).await {
+                    Ok(summary) => Ok(Some(summary)),
+                    Err(fallback_error) => Err(anyhow!(
+                        "Ошибка runtime edge: {}. Fallback тоже не сработал: {}",
+                        error,
+                        fallback_error
+                    )),
+                }
+            }
+        }
+    }
+
+    async fn build_connections_summary_from_users(
+        &self,
+        limit: usize,
+    ) -> Result<TelemtConnectionsSummary, anyhow::Error> {
+        let users = self.list_users().await?;
+        Ok(build_summary_from_user_list(users, limit))
+    }
+
+    async fn list_users(&self) -> Result<Vec<ApiUserInfo>, anyhow::Error> {
+        let response = self
+            .client
+            .get_success::<Vec<ApiUserInfo>>("/v1/stats/users")
             .await?;
-        let Some(data) = response.data.data else {
-            return Ok(None);
-        };
-        Ok(Some(TelemtConnectionsSummary {
-            current_connections: data.totals.current_connections,
-            current_connections_me: data.totals.current_connections_me,
-            current_connections_direct: data.totals.current_connections_direct,
-            active_users: data.totals.active_users,
-            top_by_connections: data
-                .top
-                .by_connections
-                .into_iter()
-                .map(map_connection_top_user)
-                .collect(),
-            top_by_throughput: data
-                .top
-                .by_throughput
-                .into_iter()
-                .map(map_connection_top_user)
-                .collect(),
-        }))
+        Ok(response.data)
     }
 
     pub(crate) async fn monitor_snapshot(&self) -> Result<TelemtMonitorSnapshot, anyhow::Error> {

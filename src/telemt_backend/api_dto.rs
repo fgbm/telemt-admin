@@ -38,6 +38,8 @@ pub(crate) struct UserInfo {
 #[derive(Debug, Deserialize)]
 pub(crate) struct ApiUserInfo {
     #[serde(default)]
+    pub(crate) username: String,
+    #[serde(default)]
     pub(crate) user_ad_tag: Option<String>,
     #[serde(default)]
     pub(crate) max_tcp_conns: Option<usize>,
@@ -132,6 +134,7 @@ pub(crate) struct RuntimeGatesData {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct MeSelftestTop {
+    #[serde(default)]
     pub(crate) enabled: bool,
     #[serde(default)]
     pub(crate) data: Option<MeSelftestPayloadDe>,
@@ -155,6 +158,7 @@ pub(crate) struct MeSelftestTimeskewDe {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct UpstreamQualityTop {
+    #[serde(default)]
     pub(crate) enabled: bool,
     #[serde(default)]
     pub(crate) summary: Option<UpstreamQualitySummaryDe>,
@@ -169,8 +173,11 @@ pub(crate) struct UpstreamQualitySummaryDe {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct RuntimeConnectionsSummaryTop {
+    #[serde(default)]
     #[allow(dead_code)]
     pub(crate) enabled: bool,
+    #[serde(default)]
+    pub(crate) reason: Option<String>,
     #[serde(default)]
     pub(crate) data: Option<RuntimeConnectionsSummaryPayload>,
 }

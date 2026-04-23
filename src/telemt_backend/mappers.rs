@@ -1,6 +1,6 @@
 use super::api_dto::{ApiUserInfo, RuntimeConnectionUserData, UserLinks};
 use super::types::{
-    TelemtBackendMode, TelemtConnectionTopUser, TelemtUserInfo,
+    TelemtBackendMode, TelemtConnectionTopUser, TelemtConnectionsSummary, TelemtUserInfo,
 };
 
 pub(super) fn pick_best_link(links: &UserLinks) -> Option<String> {
@@ -48,10 +48,52 @@ pub(super) fn map_connection_top_user(user: RuntimeConnectionUserData) -> Telemt
     }
 }
 
+pub(crate) fn build_summary_from_user_list(
+    users: Vec<ApiUserInfo>,
+    limit: usize,
+) -> TelemtConnectionsSummary {
+    let limit = limit.max(1);
+
+    let mut by_connections: Vec<_> = users
+        .iter()
+        .map(|u| TelemtConnectionTopUser {
+            username: u.username.clone(),
+            current_connections: u.current_connections,
+            total_octets: u.total_octets,
+        })
+        .collect();
+    by_connections.sort_by(|a, b| b.current_connections.cmp(&a.current_connections));
+    let top_by_connections = by_connections.into_iter().take(limit).collect();
+
+    let mut by_throughput: Vec<_> = users
+        .iter()
+        .map(|u| TelemtConnectionTopUser {
+            username: u.username.clone(),
+            current_connections: u.current_connections,
+            total_octets: u.total_octets,
+        })
+        .collect();
+    by_throughput.sort_by(|a, b| b.total_octets.cmp(&a.total_octets));
+    let top_by_throughput = by_throughput.into_iter().take(limit).collect();
+
+    let total_connections: u64 = users.iter().map(|u| u.current_connections).sum();
+    let active_users = users.iter().filter(|u| u.current_connections > 0).count();
+
+    TelemtConnectionsSummary {
+        current_connections: total_connections,
+        current_connections_me: 0,
+        current_connections_direct: 0,
+        active_users,
+        top_by_connections,
+        top_by_throughput,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        collect_links, map_api_user_info, map_connection_top_user, pick_best_link,
+        build_summary_from_user_list, collect_links, map_api_user_info, map_connection_top_user,
+        pick_best_link,
     };
     use crate::telemt_backend::api_dto::{ApiUserInfo, RuntimeConnectionUserData, UserLinks};
     use crate::telemt_backend::types::TelemtBackendMode;
@@ -110,6 +152,7 @@ mod tests {
     #[test]
     fn map_api_user_info_maps_runtime_fields() {
         let user = ApiUserInfo {
+            username: "testuser".to_string(),
             user_ad_tag: Some("promo".to_string()),
             max_tcp_conns: Some(10),
             expiration_rfc3339: Some("2026-04-01T00:00:00Z".to_string()),
@@ -154,5 +197,96 @@ mod tests {
         assert_eq!(mapped.username, "tg_1");
         assert_eq!(mapped.current_connections, 7);
         assert_eq!(mapped.total_octets, 99);
+    }
+
+    #[test]
+    fn build_summary_from_empty_user_list_returns_zeros() {
+        let summary = build_summary_from_user_list(Vec::new(), 5);
+        assert_eq!(summary.current_connections, 0);
+        assert_eq!(summary.active_users, 0);
+        assert!(summary.top_by_connections.is_empty());
+        assert!(summary.top_by_throughput.is_empty());
+    }
+
+    #[test]
+    fn build_summary_sorts_and_limits_users() {
+        let users = vec![
+            ApiUserInfo {
+                username: "alice".to_string(),
+                user_ad_tag: None,
+                max_tcp_conns: None,
+                expiration_rfc3339: None,
+                data_quota_bytes: None,
+                max_unique_ips: None,
+                current_connections: 10,
+                active_unique_ips: 1,
+                active_unique_ips_list: Vec::new(),
+                recent_unique_ips: 1,
+                recent_unique_ips_list: Vec::new(),
+                total_octets: 100,
+                links: UserLinks {
+                    classic: Vec::new(),
+                    secure: Vec::new(),
+                    tls: Vec::new(),
+                },
+            },
+            ApiUserInfo {
+                username: "bob".to_string(),
+                user_ad_tag: None,
+                max_tcp_conns: None,
+                expiration_rfc3339: None,
+                data_quota_bytes: None,
+                max_unique_ips: None,
+                current_connections: 5,
+                active_unique_ips: 1,
+                active_unique_ips_list: Vec::new(),
+                recent_unique_ips: 1,
+                recent_unique_ips_list: Vec::new(),
+                total_octets: 500,
+                links: UserLinks {
+                    classic: Vec::new(),
+                    secure: Vec::new(),
+                    tls: Vec::new(),
+                },
+            },
+            ApiUserInfo {
+                username: "charlie".to_string(),
+                user_ad_tag: None,
+                max_tcp_conns: None,
+                expiration_rfc3339: None,
+                data_quota_bytes: None,
+                max_unique_ips: None,
+                current_connections: 1,
+                active_unique_ips: 1,
+                active_unique_ips_list: Vec::new(),
+                recent_unique_ips: 1,
+                recent_unique_ips_list: Vec::new(),
+                total_octets: 50,
+                links: UserLinks {
+                    classic: Vec::new(),
+                    secure: Vec::new(),
+                    tls: Vec::new(),
+                },
+            },
+        ];
+
+        let summary = build_summary_from_user_list(users, 2);
+
+        assert_eq!(summary.current_connections, 16);
+        assert_eq!(summary.active_users, 3);
+
+        // By connections: alice (10), bob (5)
+        assert_eq!(summary.top_by_connections.len(), 2);
+        assert_eq!(summary.top_by_connections[0].username, "alice");
+        assert_eq!(summary.top_by_connections[0].current_connections, 10);
+        assert_eq!(summary.top_by_connections[1].username, "bob");
+        assert_eq!(summary.top_by_connections[1].current_connections, 5);
+
+        // By throughput: bob (500), alice (100)
+        assert_eq!(summary.top_by_throughput.len(), 2);
+        assert_eq!(summary.top_by_throughput[0].username, "bob");
+        assert_eq!(summary.top_by_throughput[0].total_octets, 500);
+        assert_eq!(summary.top_by_throughput[1].username, "alice");
+        assert_eq!(summary.top_by_throughput[1].total_octets, 100);
     }
 }

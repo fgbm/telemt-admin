@@ -17,8 +17,9 @@ cp .env.example .env
 2. Внутри контейнера конфиг монтируется как `/etc/telemt-admin/telemt-admin.toml`.
 3. Режим `external` и метка `docker` для UI задаются в `docker-compose.yml` (`TELEMT_ADMIN__RUNTIME__MODE`, `TELEMT_ADMIN__RUNTIME__LABEL`), переопределять в TOML не требуется.
 4. Для контейнерного API-only сценария оставляйте `allow_file_fallback = false`. Тогда `telemt-admin` не пытается писать `telemt.toml`, и отдельный RW mount для него не нужен.
-5. Если хотите использовать конфигурируемые тексты бота, добавьте секцию `[bot_messages]` или env `TELEMT_ADMIN__BOT_MESSAGES__*` прямо в TOML / `.env`.
-6. Уровень логов — переменная `RUST_LOG` в `.env` (например `info` или `debug` для отладки).
+5. Экран **Top пользователей** работает даже без `runtime_edge_enabled=true` в telemt — бот автоматически использует fallback на список пользователей. Для нативной сводки с разбивкой ME/Direct включите `runtime_edge_enabled = true` в секции `[server.api]` конфига telemt.
+6. Если хотите использовать конфигурируемые тексты бота, добавьте секцию `[bot_messages]` или env `TELEMT_ADMIN__BOT_MESSAGES__*` прямо в TOML / `.env`.
+7. Уровень логов — переменная `RUST_LOG` в `.env` (например `info` или `debug` для отладки).
 
 Минимальный пример `config/telemt-admin.toml`:
 

@@ -187,6 +187,7 @@ Operational note:
 - блок `Демон (control API)` зависит от runtime snapshot;
 - блок `Нагрузка` зависит от `stats_summary`;
 - строки `Live` и экран `Top пользователей` зависят от `connections_summary`;
+- если `/v1/runtime/connections/summary` недоступен (например, `runtime_edge_enabled=false`), бот автоматически делает fallback на `/v1/stats/users` и строит top-N самостоятельно;
 - если конкретный endpoint недоступен, UI показывает причину ошибки именно в соответствующем блоке, а не скрывает весь экран.
 
 Что проверять оператору:
