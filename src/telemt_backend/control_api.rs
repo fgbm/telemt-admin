@@ -107,7 +107,7 @@ impl ApiTelemtBackend {
         let path = format!("/v1/users/{}", username);
         match self
             .client
-            .mutate_with_retry::<(), String>(Method::DELETE, &path, None)
+            .mutate_with_retry::<(), serde_json::Value>(Method::DELETE, &path, None)
             .await
         {
             Ok(response) => Ok(DeleteUserResult {
