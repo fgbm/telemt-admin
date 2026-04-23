@@ -23,15 +23,6 @@ jobs:
           - os: ubuntu-latest
             target_name: linux-x86_64
             artifact_name: telemt-admin-linux-x86_64.tar.gz
-            cross_target:
-          - os: ubuntu-latest
-            target_name: linux-arm64
-            artifact_name: telemt-admin-linux-arm64.tar.gz
-            cross_target: aarch64-unknown-linux-gnu
-          - os: windows-latest
-            target_name: windows-x86_64
-            artifact_name: telemt-admin-windows-x86_64.zip
-            cross_target:
 
     steps:
       - name: Checkout
@@ -43,40 +34,16 @@ jobs:
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Install cross
-        if: matrix.cross_target != ''
-        run: cargo install cross
-
       - name: Build release binary
-        run: |
-          if [ -n "${{ matrix.cross_target }}" ]; then
-            cross build --release --locked --target ${{ matrix.cross_target }}
-          else
-            cargo build --release --locked
-          fi
+        run: cargo build --release --locked
 
-      - name: Package Linux artifact
-        if: runner.os == 'Linux'
+      - name: Package artifact
         shell: bash
         run: |
           mkdir -p dist
-          if [ -n "${{ matrix.cross_target }}" ]; then
-            cp target/${{ matrix.cross_target }}/release/telemt-admin dist/telemt-admin
-          else
-            cp target/release/telemt-admin dist/telemt-admin
-          fi
+          cp target/release/telemt-admin dist/telemt-admin
           tar -czf "${{ matrix.artifact_name }}" -C dist telemt-admin
           sha256sum "${{ matrix.artifact_name }}" > "${{ matrix.artifact_name }}.sha256"
-
-      - name: Package Windows artifact
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path dist -Force | Out-Null
-          Copy-Item target/release/telemt-admin.exe dist/telemt-admin.exe
-          Compress-Archive -Path dist/telemt-admin.exe -DestinationPath "${{ matrix.artifact_name }}" -Force
-          $hash = (Get-FileHash -Path "${{ matrix.artifact_name }}" -Algorithm SHA256).Hash
-          "$hash  ${{ matrix.artifact_name }}" | Out-File -FilePath "${{ matrix.artifact_name }}.sha256" -Encoding utf8
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
