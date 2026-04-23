@@ -3,6 +3,7 @@ use super::AdminActionResult;
 use crate::bot::handlers::callback_data::CallbackAction;
 use crate::bot::handlers::screens::{admin_show_stats, show_admin_home};
 use crate::bot::handlers::state::{BotState, WizardState, clear_wizard_state, set_wizard_state};
+use teloxide::payloads::SendMessageSetters;
 use teloxide::prelude::{Bot, CallbackQuery, Requester};
 
 pub async fn handle(
@@ -50,6 +51,9 @@ pub async fn handle(
                     .bot_messages
                     .broadcast_prompt_text("всем пользователям со статусом «доступ открыт»"),
             )
+            .reply_markup(crate::bot::keyboards::cancel_keyboard(
+                CallbackAction::ShowAdminHome,
+            ))
             .await?;
             Ok(true)
         }

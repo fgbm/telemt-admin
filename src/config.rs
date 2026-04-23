@@ -153,7 +153,7 @@ impl BotMessages {
     }
 
     pub fn broadcast_prompt_text(&self, audience: &str) -> String {
-        const DEFAULT: &str = "Рассылка {audience}.\n\nОтправьте текст одним сообщением. Пустое сообщение отменит шаг.\n\nУчтите лимиты Telegram и то, что бот не может писать пользователям, которые ни разу не нажали /start.";
+        const DEFAULT: &str = "Рассылка {audience}.\n\nОтправьте текст одним сообщением.\n\nУчтите лимиты Telegram и то, что бот не может писать пользователям, которые ни разу не нажали /start.";
         Self::render_template(
             self.broadcast_prompt.as_deref(),
             DEFAULT,
@@ -162,7 +162,7 @@ impl BotMessages {
     }
 
     pub fn broadcast_cancelled_or_default(&self) -> &str {
-        const DEFAULT: &str = "Рассылка отменена (пустой текст).";
+        const DEFAULT: &str = "Рассылка отменена.";
         Self::non_empty(self.broadcast_cancelled.as_deref()).unwrap_or(DEFAULT)
     }
 
