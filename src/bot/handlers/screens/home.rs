@@ -41,8 +41,9 @@ pub async fn show_user_home(
     state: &BotState,
     user_id: i64,
 ) -> HandlerResult {
-    let text = if let Some(existing) = state.db.get_request_by_tg_user(user_id).await? {
-        match existing.status {
+    let (text, has_access) = if let Some(existing) = state.db.get_request_by_tg_user(user_id).await? {
+        let has_access = existing.status == RequestStatus::Approved;
+        let text = match existing.status {
             RequestStatus::Approved => {
                 "Доступ уже открыт.\n\nНажмите «Получить ссылку».".to_string()
             }
@@ -55,10 +56,13 @@ pub async fn show_user_home(
             RequestStatus::Deleted => {
                 "Доступ был отозван.\n\nДля новой регистрации отправьте /start и введите invite-токен заново.".to_string()
             }
-        }
+        };
+        (text, has_access)
     } else {
-        "Чтобы получить доступ, отправьте /start и введите invite-токен.\n\nЕсли токен уже есть, нажмите кнопку ниже."
-            .to_string()
+        (
+            state.config.bot_messages.no_access_status_or_default().to_string(),
+            false,
+        )
     };
 
     upsert_screen(
@@ -66,7 +70,7 @@ pub async fn show_user_home(
         chat_id,
         message_id,
         text,
-        crate::bot::keyboards::user_home_keyboard(),
+        crate::bot::keyboards::user_home_keyboard(has_access),
     )
     .await
 }

@@ -513,7 +513,7 @@ pub async fn send_user_link(
             } else {
                 bot.send_message(
                     chat_id,
-                    "У вас нет доступа к прокси. Отправьте /start для регистрации.",
+                    state.config.bot_messages.no_access_link_or_default(),
                 )
                 .await?;
             }

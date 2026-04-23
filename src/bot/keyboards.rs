@@ -59,27 +59,40 @@ pub fn approve_reject_buttons(request_id: i64) -> InlineKeyboardMarkup {
     ])
 }
 
-pub fn user_home_keyboard() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new(vec![
-        vec![
-            InlineKeyboardButton::callback(
+pub fn user_home_keyboard(has_access: bool) -> InlineKeyboardMarkup {
+    if has_access {
+        InlineKeyboardMarkup::new(vec![
+            vec![
+                InlineKeyboardButton::callback(
+                    "🔗 Получить ссылку",
+                    CallbackAction::ShowUserLink.encode(),
+                ),
+                InlineKeyboardButton::callback(
+                    "❓ Инструкция",
+                    CallbackAction::ShowUsageGuide.encode(),
+                ),
+            ],
+            vec![InlineKeyboardButton::callback(
+                "🔄 Обновить статус",
+                CallbackAction::ShowUserHome.encode(),
+            )],
+        ])
+    } else {
+        InlineKeyboardMarkup::new(vec![
+            vec![InlineKeyboardButton::callback(
                 "🔑 Ввести invite-токен",
                 CallbackAction::PromptInviteToken.encode(),
-            ),
-            InlineKeyboardButton::callback(
-                "❓ Инструкция",
-                CallbackAction::ShowUsageGuide.encode(),
-            ),
-        ],
-        vec![InlineKeyboardButton::callback(
-            "🔗 Получить ссылку",
-            CallbackAction::ShowUserLink.encode(),
-        )],
-        vec![InlineKeyboardButton::callback(
-            "🔄 Обновить статус",
-            CallbackAction::ShowUserHome.encode(),
-        )],
-    ])
+            )],
+            vec![InlineKeyboardButton::callback(
+                "🔗 Получить ссылку",
+                CallbackAction::ShowUserLink.encode(),
+            )],
+            vec![InlineKeyboardButton::callback(
+                "🔄 Обновить статус",
+                CallbackAction::ShowUserHome.encode(),
+            )],
+        ])
+    }
 }
 
 pub fn guide_keyboard() -> InlineKeyboardMarkup {

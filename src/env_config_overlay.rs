@@ -192,6 +192,16 @@ pub fn apply(config: &mut Config) -> Result<Vec<String>, anyhow::Error> {
         applied.push("TELEMT_ADMIN__BOT_MESSAGES__BROADCAST_SUMMARY_TEMPLATE".to_string());
     }
 
+    if let Some(v) = read_nonempty("BOT_MESSAGES__NO_ACCESS_STATUS_TEXT") {
+        config.bot_messages.no_access_status_text = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__NO_ACCESS_STATUS_TEXT".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__NO_ACCESS_LINK_TEXT") {
+        config.bot_messages.no_access_link_text = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__NO_ACCESS_LINK_TEXT".to_string());
+    }
+
     Ok(applied)
 }
 

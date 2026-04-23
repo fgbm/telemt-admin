@@ -27,8 +27,6 @@ use teloxide::utils::command::BotCommands;
 pub enum PublicBotCommand {
     #[command(description = "🏠 Главный экран")]
     Start,
-    #[command(description = "🔗 Получить ссылку")]
-    Link,
     #[command(description = "❓ Справка")]
     Help,
 }
@@ -140,7 +138,6 @@ pub async fn cmd_help(bot: Bot, msg: Message, state: BotState) -> HandlerResult 
     } else {
         r#"Команды:
 /start — главный экран
-/link — получить ссылку
 /help — справка
 
 Если доступа ещё нет, бот подскажет следующий шаг."#
@@ -294,7 +291,7 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
     {
         clear_wizard_state(&state, user_id).await?;
         bot.send_message(msg.chat.id, stub)
-            .reply_markup(crate::bot::keyboards::user_home_keyboard())
+            .reply_markup(crate::bot::keyboards::user_home_keyboard(false))
             .await?;
         return Ok(());
     }

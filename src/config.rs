@@ -82,6 +82,12 @@ pub struct BotMessages {
     /// Итог рассылки. Поддерживает `{ok}`, `{failed}`, `{total}`.
     #[serde(default)]
     pub broadcast_summary_template: Option<String>,
+    /// Текст при обновлении статуса без доступа (нет заявки / не одобрено).
+    #[serde(default)]
+    pub no_access_status_text: Option<String>,
+    /// Текст при запросе ссылки без доступа.
+    #[serde(default)]
+    pub no_access_link_text: Option<String>,
 }
 
 impl BotMessages {
@@ -172,6 +178,16 @@ impl BotMessages {
                 ("total", total.to_string()),
             ],
         )
+    }
+
+    pub fn no_access_status_or_default(&self) -> &str {
+        const DEFAULT: &str = "Чтобы получить доступ, отправьте /start и введите invite-токен.\n\nЕсли токен уже есть, нажмите кнопку ниже.";
+        Self::non_empty(self.no_access_status_text.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn no_access_link_or_default(&self) -> &str {
+        const DEFAULT: &str = "У вас нет доступа к прокси. Отправьте /start для регистрации.";
+        Self::non_empty(self.no_access_link_text.as_deref()).unwrap_or(DEFAULT)
     }
 }
 
@@ -527,5 +543,29 @@ mod tests {
             config.effective_external_label().as_deref(),
             Some("external supervisor")
         );
+    }
+
+    #[test]
+    fn no_access_messages_return_defaults_when_empty() {
+        let messages = BotMessages {
+            no_access_status_text: None,
+            no_access_link_text: Some("   ".to_string()),
+            ..Default::default()
+        };
+
+        assert!(messages.no_access_status_or_default().contains("invite-токен"));
+        assert!(messages.no_access_link_or_default().contains("нет доступа"));
+    }
+
+    #[test]
+    fn no_access_messages_use_custom_values_when_set() {
+        let messages = BotMessages {
+            no_access_status_text: Some("Custom status".to_string()),
+            no_access_link_text: Some("Custom link".to_string()),
+            ..Default::default()
+        };
+
+        assert_eq!(messages.no_access_status_or_default(), "Custom status");
+        assert_eq!(messages.no_access_link_or_default(), "Custom link");
     }
 }
