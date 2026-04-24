@@ -9,7 +9,7 @@ mod callbacks;
 #[path = "handlers/commands/mod.rs"]
 mod commands;
 #[path = "handlers/format.rs"]
-mod format;
+pub mod format;
 #[path = "handlers/menu.rs"]
 mod menu;
 #[path = "handlers/screens/mod.rs"]

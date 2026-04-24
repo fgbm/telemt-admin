@@ -5,6 +5,11 @@ use std::path::PathBuf;
 
 use crate::runtime::RuntimeMode;
 
+/// Лениво инициализированный Handlebars registry для рендеринга шаблонов.
+fn handlebars_registry() -> handlebars::Handlebars<'static> {
+    handlebars::Handlebars::new()
+}
+
 /// Путь к конфигу по умолчанию.
 pub const DEFAULT_CONFIG_PATH: &str = "/etc/telemt-admin.toml";
 
@@ -88,6 +93,66 @@ pub struct BotMessages {
     /// Текст при запросе ссылки без доступа.
     #[serde(default)]
     pub no_access_link_text: Option<String>,
+    /// Заголовок панели администратора.
+    #[serde(default)]
+    pub admin_home_text: Option<String>,
+    /// Текст user home при статусе Approved. Поддерживает {link}.
+    #[serde(default)]
+    pub user_home_approved: Option<String>,
+    /// Текст user home при статусе Pending.
+    #[serde(default)]
+    pub user_home_pending: Option<String>,
+    /// Текст user home при статусе Rejected.
+    #[serde(default)]
+    pub user_home_rejected: Option<String>,
+    /// Текст user home при статусе Deleted.
+    #[serde(default)]
+    pub user_home_deleted: Option<String>,
+    /// Инструкция по подключению (usage guide).
+    #[serde(default)]
+    pub usage_guide_text: Option<String>,
+    /// Текст команды /help для администратора.
+    #[serde(default)]
+    pub help_admin_text: Option<String>,
+    /// Текст команды /help для обычного пользователя.
+    #[serde(default)]
+    pub help_user_text: Option<String>,
+    /// Сообщение об ошибке при вводе неизвестной команды.
+    #[serde(default)]
+    pub unknown_command_text: Option<String>,
+    /// Сообщение о недостаточных правах для deep link.
+    #[serde(default)]
+    pub admin_only_deep_link_text: Option<String>,
+    /// Сообщение Пользователь не найден или уже неактивен.
+    #[serde(default)]
+    pub user_not_found_text: Option<String>,
+    /// Сообщение Токен не найден или уже недоступен.
+    #[serde(default)]
+    pub token_not_found_text: Option<String>,
+    /// Текст подтверждения действия над сервисом. Поддерживает {action}.
+    #[serde(default)]
+    pub service_action_confirm_template: Option<String>,
+    /// Текст при ошибке токена: NotFound.
+    #[serde(default)]
+    pub token_error_not_found: Option<String>,
+    /// Текст при ошибке токена: Revoked.
+    #[serde(default)]
+    pub token_error_revoked: Option<String>,
+    /// Текст при ошибке токена: Expired.
+    #[serde(default)]
+    pub token_error_expired: Option<String>,
+    /// Текст при ошибке токена: UsageLimitReached.
+    #[serde(default)]
+    pub token_error_usage_limit: Option<String>,
+    /// Шаблон уведомления админам о новой заявке.
+    #[serde(default)]
+    pub admin_notify_new_request_template: Option<String>,
+    /// Шаблон уведомления админам об автоподключении.
+    #[serde(default)]
+    pub admin_notify_auto_approve_template: Option<String>,
+    /// Текст при отсутствии wizard-состояния (непонятный запрос).
+    #[serde(default)]
+    pub fallback_unknown_request_text: Option<String>,
 }
 
 impl BotMessages {
@@ -100,11 +165,33 @@ impl BotMessages {
         default: &str,
         replacements: &[(&str, String)],
     ) -> String {
-        let mut rendered = Self::non_empty(template).unwrap_or(default).to_string();
+        let base = Self::non_empty(template).unwrap_or(default).to_string();
+        // Legacy placeholder support: replace {key} before Handlebars.
+        let mut pre_rendered = base.clone();
         for (key, value) in replacements {
-            rendered = rendered.replace(&format!("{{{key}}}"), value);
+            pre_rendered = pre_rendered.replace(&format!("{{{key}}}"), value);
         }
-        rendered
+        // Handlebars for advanced templates (conditionals, loops).
+        // Build JSON context from replacements so both {key} and {{key}} work.
+        let mut ctx = serde_json::Map::new();
+        for (key, value) in replacements {
+            ctx.insert(key.to_string(), serde_json::Value::String(value.clone()));
+        }
+        match handlebars_registry().render_template(&base, &serde_json::Value::Object(ctx)) {
+            Ok(hb_result) => {
+                // If Handlebars produced the same result (no advanced syntax used),
+                // prefer the legacy-pre_rendered to preserve any literal {{ }} in text.
+                if hb_result == base {
+                    pre_rendered
+                } else {
+                    hb_result
+                }
+            }
+            Err(error) => {
+                tracing::warn!(template = %base, error = %error, "Handlebars render failed, falling back to legacy replace");
+                pre_rendered
+            }
+        }
     }
 
     pub fn invite_manual_prompt_or_default(&self) -> &str {
@@ -188,6 +275,161 @@ impl BotMessages {
     pub fn no_access_link_or_default(&self) -> &str {
         const DEFAULT: &str = "У вас нет доступа к прокси. Отправьте /start для регистрации.";
         Self::non_empty(self.no_access_link_text.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn admin_home_or_default(&self) -> &str {
+        const DEFAULT: &str = "Панель администратора\n\nВыберите раздел ниже.";
+        Self::non_empty(self.admin_home_text.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn user_home_approved_text(&self, link: &str) -> String {
+        const DEFAULT: &str = "Доступ уже открыт.\n\nНажмите «Получить ссылку».";
+        Self::render_template(self.user_home_approved.as_deref(), DEFAULT, &[("link", link.to_string())])
+    }
+
+    pub fn user_home_pending_or_default(&self) -> &str {
+        const DEFAULT: &str = "Заявка уже на рассмотрении.\n\nДождитесь решения администратора.";
+        Self::non_empty(self.user_home_pending.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn user_home_rejected_or_default(&self) -> &str {
+        const DEFAULT: &str = "Заявка отклонена.\n\nЕсли есть новый invite-токен, отправьте /start и введите его заново.";
+        Self::non_empty(self.user_home_rejected.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn user_home_deleted_or_default(&self) -> &str {
+        const DEFAULT: &str = "Доступ был отозван.\n\nДля новой регистрации отправьте /start и введите invite-токен заново.";
+        Self::non_empty(self.user_home_deleted.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn usage_guide_or_default(&self) -> &str {
+        const DEFAULT: &str = r#"Как подключиться к прокси:
+
+1) Получите ссылку через команду /link.
+2) Нажмите на ссылку — Telegram автоматически предложит добавить прокси.
+3) Подтвердите добавление.
+
+Если доступа ещё нет, начните с /start и введите invite-токен.
+Если не получается, обратитесь к администратору."#;
+        Self::non_empty(self.usage_guide_text.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn help_admin_or_default(&self) -> &str {
+        const DEFAULT: &str = r#"Команды:
+/start — главный экран
+/user — пользователи
+/token — токены
+/service — сервис
+/link — моя ссылка
+/help — справка
+
+Основные действия выполняются внутри разделов через кнопки."#;
+        Self::non_empty(self.help_admin_text.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn help_user_or_default(&self) -> &str {
+        const DEFAULT: &str = r#"Команды:
+/start — главный экран
+/help — справка
+
+Если доступа ещё нет, бот подскажет следующий шаг."#;
+        Self::non_empty(self.help_user_text.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn unknown_command_or_default(&self) -> &str {
+        const DEFAULT: &str = "Неизвестная команда. Используйте /help.";
+        Self::non_empty(self.unknown_command_text.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn admin_only_deep_link_or_default(&self) -> &str {
+        const DEFAULT: &str = "Этот deep link доступен только администраторам.";
+        Self::non_empty(self.admin_only_deep_link_text.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn user_not_found_or_default(&self) -> &str {
+        const DEFAULT: &str = "Пользователь не найден или уже неактивен.";
+        Self::non_empty(self.user_not_found_text.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn token_not_found_or_default(&self) -> &str {
+        const DEFAULT: &str = "Токен не найден или уже недоступен.";
+        Self::non_empty(self.token_not_found_text.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn service_action_confirm_text(&self, action: &str) -> String {
+        const DEFAULT: &str = "Подтвердить действие: {action}?\n\nЭто может временно прервать доступ пользователей.";
+        Self::render_template(self.service_action_confirm_template.as_deref(), DEFAULT, &[("action", action.to_string())])
+    }
+
+    pub fn token_error_not_found_or_default(&self) -> &str {
+        const DEFAULT: &str = "Токен не найден. Проверьте код и попробуйте снова.";
+        Self::non_empty(self.token_error_not_found.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn token_error_revoked_or_default(&self) -> &str {
+        const DEFAULT: &str = "Этот токен отозван администратором.";
+        Self::non_empty(self.token_error_revoked.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn token_error_expired_or_default(&self) -> &str {
+        const DEFAULT: &str = "Срок действия invite-токена (ссылки) истёк.";
+        Self::non_empty(self.token_error_expired.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn token_error_usage_limit_or_default(&self) -> &str {
+        const DEFAULT: &str = "Лимит активаций invite-токена исчерпан.";
+        Self::non_empty(self.token_error_usage_limit.as_deref()).unwrap_or(DEFAULT)
+    }
+
+    pub fn admin_notify_new_request_text(&self, req: &crate::db::RegistrationRequest) -> String {
+        const DEFAULT: &str = "📋 Новая заявка #{id}:\n User ID: {user_id}\n Username: @{username}\n Имя: {display_name}\n Время: {time}{invite_token_id}";
+        let invite_line = req.invite_token_id.map(|id| format!("\n🎟 ID ссылки (invite): {}", id)).unwrap_or_default();
+        Self::render_template(
+            self.admin_notify_new_request_template.as_deref(),
+            DEFAULT,
+            &[
+                ("id", req.id.to_string()),
+                ("user_id", req.tg_user_id.to_string()),
+                ("username", req.tg_username.as_deref().unwrap_or("—").to_string()),
+                ("display_name", req.tg_display_name.as_deref().unwrap_or("—").to_string()),
+                ("time", crate::bot::handlers::format::format_timestamp(req.created_at)),
+                ("invite_token_id", invite_line),
+            ],
+        )
+    }
+
+    pub fn admin_notify_auto_approve_text(&self,
+        tg_user_id: i64,
+        tg_username: Option<&str>,
+        tg_display_name: Option<&str>,
+        token: &crate::db::ConsumedInviteToken,
+    ) -> String {
+        const DEFAULT: &str = "✅ Автоподключение по invite-токену\n User ID: {user_id}\n Username: @{username}\n Имя: {display_name}\n Invite token: {token}\n Token ID: {token_id}\n Mode: {mode}\n Срок действия ссылки (invite), не пользователя: {expires_at}\n Активаций по токену: {usage_count}/{max_usage}\n Created by: {created_by}";
+        let mode_label = match token.mode {
+            crate::db::TokenMode::AutoApprove => "auto",
+            crate::db::TokenMode::Manual => "manual",
+        };
+        Self::render_template(
+            self.admin_notify_auto_approve_template.as_deref(),
+            DEFAULT,
+            &[
+                ("user_id", tg_user_id.to_string()),
+                ("username", tg_username.unwrap_or("—").to_string()),
+                ("display_name", tg_display_name.unwrap_or("—").to_string()),
+                ("token", token.token.clone()),
+                ("token_id", token.id.to_string()),
+                ("mode", mode_label.to_string()),
+                ("expires_at", crate::bot::handlers::format::format_timestamp(token.expires_at)),
+                ("usage_count", token.usage_count.to_string()),
+                ("max_usage", token.max_usage.map(|v| v.to_string()).unwrap_or_else(|| "∞".to_string())),
+                ("created_by", token.created_by.map(|v| v.to_string()).unwrap_or_else(|| "—".to_string())),
+            ],
+        )
+    }
+
+    pub fn fallback_unknown_request_or_default(&self) -> &str {
+        const DEFAULT: &str = "Не понял запрос. Используйте /help или начните нужный сценарий через slash-команду либо кнопку.";
+        Self::non_empty(self.fallback_unknown_request_text.as_deref()).unwrap_or(DEFAULT)
     }
 }
 

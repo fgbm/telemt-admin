@@ -411,7 +411,7 @@ pub async fn send_token_start_link(
     };
 
     let Some(token) = state.db.get_active_invite_token_by_id(token_id).await? else {
-        bot.send_message(chat_id, "Токен не найден или уже недоступен.")
+        bot.send_message(chat_id, state.config.bot_messages.token_not_found_or_default())
             .await?;
         return Ok(());
     };

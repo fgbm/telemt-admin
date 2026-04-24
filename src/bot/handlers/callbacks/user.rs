@@ -53,7 +53,7 @@ pub async fn handle_user_action(
         CallbackAction::ShowUsageGuide => {
             if let Some((chat_id, message_id)) = callback_message_target(q) {
                 ack_callback(bot, q.id.clone(), None, false).await?;
-                show_usage_guide(bot, chat_id, Some(message_id)).await?;
+                show_usage_guide(bot, chat_id, Some(message_id), state).await?;
             }
             Ok(true)
         }
@@ -82,7 +82,7 @@ pub async fn handle_user_action(
             ack_callback(bot, q.id.clone(), Some("Сценарий отменён"), false).await?;
             if let Some((chat_id, message_id)) = callback_message_target(q) {
                 if state.config.is_admin(user_id) {
-                    show_admin_home(bot, chat_id, Some(message_id)).await?;
+                    show_admin_home(bot, chat_id, Some(message_id), state).await?;
                 } else {
                     let username = q.from.username.as_deref();
                     let display_name = q.from.full_name();

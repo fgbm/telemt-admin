@@ -1,5 +1,4 @@
 use super::users::try_auto_import_remote_user_by_tg_id;
-use crate::bot::handlers::format::format_timestamp;
 use crate::bot::handlers::shared::HandlerResult;
 use crate::bot::handlers::state::{BotState, clear_wizard_state, telemt_username};
 use crate::db::{
@@ -93,37 +92,11 @@ async fn notify_auto_approve(
     tg_display_name: Option<&str>,
     token: &ConsumedInviteToken,
 ) {
-    let mode_label = match token.mode {
-        TokenMode::AutoApprove => "auto",
-        TokenMode::Manual => "manual",
-    };
-    let text = format!(
-        "✅ Автоподключение по invite-токену\n\
-         User ID: {}\n\
-         Username: @{}\n\
-         Имя: {}\n\
-         Invite token: {}\n\
-         Token ID: {}\n\
-         Mode: {}\n\
-         Срок действия ссылки (invite), не пользователя: {}\n\
-         Активаций по токену: {}/{}\n\
-         Created by: {}",
+    let text = state.config.bot_messages.admin_notify_auto_approve_text(
         tg_user_id,
-        tg_username.unwrap_or("—"),
-        tg_display_name.unwrap_or("—"),
-        token.token,
-        token.id,
-        mode_label,
-        format_timestamp(token.expires_at),
-        token.usage_count,
-        token
-            .max_usage
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "∞".to_string()),
-        token
-            .created_by
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "—".to_string())
+        tg_username,
+        tg_display_name,
+        token,
     );
 
     for admin_id in &state.config.admin_ids {
@@ -145,23 +118,7 @@ async fn notify_admins(bot: &Bot, state: &BotState, req: &RegistrationRequest) -
         );
         return Ok(());
     }
-    let invite_line = req
-        .invite_token_id
-        .map(|id| format!("\n🎟 ID ссылки (invite): {}", id))
-        .unwrap_or_default();
-    let text = format!(
-        "📋 Новая заявка #{}:\n\
-         User ID: {}\n\
-         Username: @{}\n\
-         Имя: {}\n\
-         Время: {}{}",
-        req.id,
-        req.tg_user_id,
-        req.tg_username.as_deref().unwrap_or("—"),
-        req.tg_display_name.as_deref().unwrap_or("—"),
-        format_timestamp(req.created_at),
-        invite_line,
-    );
+    let text = state.config.bot_messages.admin_notify_new_request_text(req);
 
     let kb = crate::bot::keyboards::approve_reject_buttons(req.id);
     for admin_id in &state.config.admin_ids {
@@ -183,23 +140,24 @@ async fn notify_admins(bot: &Bot, state: &BotState, req: &RegistrationRequest) -
 async fn send_invite_token_error_message(
     bot: &Bot,
     chat_id: ChatId,
+    state: &BotState,
     error: TokenConsumeError,
 ) -> HandlerResult {
     match error {
         TokenConsumeError::NotFound => {
-            bot.send_message(chat_id, "Токен не найден. Проверьте код и попробуйте снова.")
+            bot.send_message(chat_id, state.config.bot_messages.token_error_not_found_or_default())
                 .await?;
         }
         TokenConsumeError::Revoked => {
-            bot.send_message(chat_id, "Этот токен отозван администратором.")
+            bot.send_message(chat_id, state.config.bot_messages.token_error_revoked_or_default())
                 .await?;
         }
         TokenConsumeError::Expired => {
-            bot.send_message(chat_id, "Срок действия invite-токена (ссылки) истёк.")
+            bot.send_message(chat_id, state.config.bot_messages.token_error_expired_or_default())
                 .await?;
         }
         TokenConsumeError::UsageLimitReached => {
-            bot.send_message(chat_id, "Лимит активаций invite-токена исчерпан.")
+            bot.send_message(chat_id, state.config.bot_messages.token_error_usage_limit_or_default())
                 .await?;
         }
         TokenConsumeError::Internal(error) => return Err(error.into()),
@@ -317,7 +275,7 @@ pub async fn process_invite_token(
                 .into());
             }
             Err(error) => {
-                send_invite_token_error_message(bot, msg.chat.id, error).await?;
+                send_invite_token_error_message(bot, msg.chat.id, state, error).await?;
                 return Ok(());
             }
         }
@@ -362,7 +320,7 @@ pub async fn process_invite_token(
             }
             Err(TokenConsumeError::UsageLimitReached) => {}
             Err(error) => {
-                send_invite_token_error_message(bot, msg.chat.id, error).await?;
+                send_invite_token_error_message(bot, msg.chat.id, state, error).await?;
                 return Ok(());
             }
         }
@@ -371,7 +329,7 @@ pub async fn process_invite_token(
     let consumed = match state.db.consume_invite_token(token).await {
         Ok(token_payload) => token_payload,
         Err(error) => {
-            send_invite_token_error_message(bot, msg.chat.id, error).await?;
+            send_invite_token_error_message(bot, msg.chat.id, state, error).await?;
             return Ok(());
         }
     };

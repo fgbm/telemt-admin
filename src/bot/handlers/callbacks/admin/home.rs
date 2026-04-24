@@ -21,7 +21,7 @@ pub async fn handle(
             };
             clear_wizard_state(state, admin_id).await?;
             ack_callback(bot, q.id.clone(), None, false).await?;
-            show_admin_home(bot, chat_id, Some(message_id)).await?;
+            show_admin_home(bot, chat_id, Some(message_id), state).await?;
             Ok(true)
         }
         CallbackAction::ShowStats => {

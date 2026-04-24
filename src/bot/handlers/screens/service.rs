@@ -6,6 +6,7 @@ use crate::bot::handlers::format::format_timestamp;
 use super::compact_line;
 use super::upsert_screen;
 use crate::bot::handlers::shared::HandlerResult;
+use crate::bot::handlers::state::BotState;
 use crate::db::{AdminActivity, AdminStats, SyncHealthSummary};
 use crate::runtime::{RuntimeCapabilities, ServiceEvents, ServiceSummary};
 
@@ -346,14 +347,12 @@ pub async fn show_service_action_confirm(
     chat_id: ChatId,
     message_id: MessageId,
     action: ServiceAction,
+    state: &BotState,
 ) -> HandlerResult {
     bot.edit_message_text(
         chat_id,
         message_id,
-        format!(
-            "Подтвердить действие: {}?\n\nЭто может временно прервать доступ пользователей.",
-            service_action_title(action)
-        ),
+        state.config.bot_messages.service_action_confirm_text(service_action_title(action)),
     )
     .reply_markup(crate::bot::keyboards::confirm_service_action_keyboard(
         action,

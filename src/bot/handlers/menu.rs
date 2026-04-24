@@ -241,7 +241,7 @@ async fn handle_menu_buttons_inner(bot: Bot, msg: Message, state: BotState) -> H
         None => {
             bot.send_message(
                 msg.chat.id,
-                "Не понял запрос. Используйте /help или начните нужный сценарий через slash-команду либо кнопку.",
+                state.config.bot_messages.fallback_unknown_request_or_default(),
             )
             .await?;
         }

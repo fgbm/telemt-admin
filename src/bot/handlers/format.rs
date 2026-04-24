@@ -285,22 +285,11 @@ pub fn render_user_card_text(
     )
 }
 
-pub fn usage_guide_text() -> &'static str {
-    r#"Как подключиться к прокси:
-
-1) Получите ссылку через команду /link.
-2) Нажмите на ссылку — Telegram автоматически предложит добавить прокси.
-3) Подтвердите добавление.
-
-Если доступа ещё нет, начните с /start и введите invite-токен.
-Если не получается, обратитесь к администратору."#
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
         format_bytes_human, render_invite_token_button_title, render_user_card_text,
-        usage_guide_text, user_display_name,
+        user_display_name,
     };
     use crate::db::{InviteToken, RegistrationRequest, RequestStatus};
     use crate::telemt_backend::{TelemtBackendMode, TelemtUserInfo};
@@ -405,11 +394,4 @@ mod tests {
         assert!(text.contains("ID ссылки (invite): —"));
     }
 
-    #[test]
-    fn usage_guide_text_mentions_start_and_link() {
-        let text = usage_guide_text();
-
-        assert!(text.contains("/start"));
-        assert!(text.contains("/link"));
-    }
 }

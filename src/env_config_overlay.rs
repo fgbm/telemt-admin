@@ -202,6 +202,106 @@ pub fn apply(config: &mut Config) -> Result<Vec<String>, anyhow::Error> {
         applied.push("TELEMT_ADMIN__BOT_MESSAGES__NO_ACCESS_LINK_TEXT".to_string());
     }
 
+    if let Some(v) = read_nonempty("BOT_MESSAGES__ADMIN_HOME_TEXT") {
+        config.bot_messages.admin_home_text = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__ADMIN_HOME_TEXT".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__USER_HOME_APPROVED") {
+        config.bot_messages.user_home_approved = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__USER_HOME_APPROVED".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__USER_HOME_PENDING") {
+        config.bot_messages.user_home_pending = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__USER_HOME_PENDING".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__USER_HOME_REJECTED") {
+        config.bot_messages.user_home_rejected = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__USER_HOME_REJECTED".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__USER_HOME_DELETED") {
+        config.bot_messages.user_home_deleted = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__USER_HOME_DELETED".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__USAGE_GUIDE_TEXT") {
+        config.bot_messages.usage_guide_text = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__USAGE_GUIDE_TEXT".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__HELP_ADMIN_TEXT") {
+        config.bot_messages.help_admin_text = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__HELP_ADMIN_TEXT".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__HELP_USER_TEXT") {
+        config.bot_messages.help_user_text = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__HELP_USER_TEXT".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__UNKNOWN_COMMAND_TEXT") {
+        config.bot_messages.unknown_command_text = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__UNKNOWN_COMMAND_TEXT".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__ADMIN_ONLY_DEEP_LINK_TEXT") {
+        config.bot_messages.admin_only_deep_link_text = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__ADMIN_ONLY_DEEP_LINK_TEXT".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__USER_NOT_FOUND_TEXT") {
+        config.bot_messages.user_not_found_text = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__USER_NOT_FOUND_TEXT".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__TOKEN_NOT_FOUND_TEXT") {
+        config.bot_messages.token_not_found_text = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__TOKEN_NOT_FOUND_TEXT".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__SERVICE_ACTION_CONFIRM_TEMPLATE") {
+        config.bot_messages.service_action_confirm_template = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__SERVICE_ACTION_CONFIRM_TEMPLATE".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__TOKEN_ERROR_NOT_FOUND") {
+        config.bot_messages.token_error_not_found = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__TOKEN_ERROR_NOT_FOUND".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__TOKEN_ERROR_REVOKED") {
+        config.bot_messages.token_error_revoked = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__TOKEN_ERROR_REVOKED".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__TOKEN_ERROR_EXPIRED") {
+        config.bot_messages.token_error_expired = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__TOKEN_ERROR_EXPIRED".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__TOKEN_ERROR_USAGE_LIMIT") {
+        config.bot_messages.token_error_usage_limit = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__TOKEN_ERROR_USAGE_LIMIT".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__ADMIN_NOTIFY_NEW_REQUEST_TEMPLATE") {
+        config.bot_messages.admin_notify_new_request_template = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__ADMIN_NOTIFY_NEW_REQUEST_TEMPLATE".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__ADMIN_NOTIFY_AUTO_APPROVE_TEMPLATE") {
+        config.bot_messages.admin_notify_auto_approve_template = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__ADMIN_NOTIFY_AUTO_APPROVE_TEMPLATE".to_string());
+    }
+
+    if let Some(v) = read_nonempty("BOT_MESSAGES__FALLBACK_UNKNOWN_REQUEST_TEXT") {
+        config.bot_messages.fallback_unknown_request_text = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__FALLBACK_UNKNOWN_REQUEST_TEXT".to_string());
+    }
+
     Ok(applied)
 }
 

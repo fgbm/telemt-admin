@@ -113,7 +113,7 @@ async fn handle_command_message_inner(bot: Bot, msg: Message, state: BotState) -
         "service" => cmd_service(bot, msg, state).await,
         "token" => cmd_token(bot, msg, state).await,
         _ => {
-            bot.send_message(msg.chat.id, "Неизвестная команда. Используйте /help.")
+            bot.send_message(msg.chat.id, state.config.bot_messages.unknown_command_or_default())
                 .await?;
             Ok(())
         }
@@ -126,21 +126,9 @@ pub async fn cmd_help(bot: Bot, msg: Message, state: BotState) -> HandlerResult 
     };
     let is_admin = state.config.is_admin(user_id);
     let text = if is_admin {
-        r#"Команды:
-/start — главный экран
-/user — пользователи
-/token — токены
-/service — сервис
-/link — моя ссылка
-/help — справка
-
-Основные действия выполняются внутри разделов через кнопки."#
+        state.config.bot_messages.help_admin_or_default()
     } else {
-        r#"Команды:
-/start — главный экран
-/help — справка
-
-Если доступа ещё нет, бот подскажет следующий шаг."#
+        state.config.bot_messages.help_user_or_default()
     };
     send_text_with_keyboard_removed(&bot, msg.chat.id, text).await?;
     Ok(())
@@ -183,7 +171,7 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                 if !state.config.is_admin(user_id) {
                     bot.send_message(
                         msg.chat.id,
-                        "Этот deep link доступен только администраторам.",
+                        state.config.bot_messages.admin_only_deep_link_or_default(),
                     )
                     .await?;
                     return Ok(());
@@ -192,7 +180,7 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                 if let Some(user) = state.db.get_active_user_by_tg_user(target_user_id).await? {
                     show_user_card(&bot, msg.chat.id, None, &user, 1, &state).await?;
                 } else {
-                    bot.send_message(msg.chat.id, "Пользователь не найден или уже неактивен.")
+                    bot.send_message(msg.chat.id, state.config.bot_messages.user_not_found_or_default())
                         .await?;
                 }
                 return Ok(());
@@ -201,7 +189,7 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                 if !state.config.is_admin(user_id) {
                     bot.send_message(
                         msg.chat.id,
-                        "Этот deep link доступен только администраторам.",
+                        state.config.bot_messages.admin_only_deep_link_or_default(),
                     )
                     .await?;
                     return Ok(());
@@ -210,7 +198,7 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                 if let Some(token) = state.db.get_active_invite_token_by_id(token_id).await? {
                     show_token_card(&bot, msg.chat.id, None, &token, 1).await?;
                 } else {
-                    bot.send_message(msg.chat.id, "Токен не найден или уже недоступен.")
+                    bot.send_message(msg.chat.id, state.config.bot_messages.token_not_found_or_default())
                         .await?;
                 }
                 return Ok(());
@@ -219,14 +207,14 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                 if !state.config.is_admin(user_id) {
                     bot.send_message(
                         msg.chat.id,
-                        "Этот deep link доступен только администраторам.",
+                        state.config.bot_messages.admin_only_deep_link_or_default(),
                     )
                     .await?;
                     return Ok(());
                 }
                 clear_wizard_state(&state, user_id).await?;
                 match screen {
-                    AdminStartScreen::Home => show_admin_home(&bot, msg.chat.id, None).await?,
+                    AdminStartScreen::Home => show_admin_home(&bot, msg.chat.id, None, &state).await?,
                     AdminStartScreen::Users => {
                         admin_show_users_page(&bot, msg.chat.id, &state, 1, None).await?
                     }
@@ -252,7 +240,7 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
 
     if state.config.is_admin(user_id) {
         clear_wizard_state(&state, user_id).await?;
-        show_admin_home(&bot, msg.chat.id, None).await?;
+        show_admin_home(&bot, msg.chat.id, None, &state).await?;
         return Ok(());
     }
 

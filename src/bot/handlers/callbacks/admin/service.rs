@@ -37,7 +37,7 @@ pub async fn handle(
                 return Ok(true);
             };
             ack_callback(bot, q.id.clone(), None, false).await?;
-            show_service_action_confirm(bot, chat_id, message_id, action).await?;
+            show_service_action_confirm(bot, chat_id, message_id, action, state).await?;
             Ok(true)
         }
         CallbackAction::ExecuteServiceAction { action } => {
