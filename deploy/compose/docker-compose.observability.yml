@@ -1,0 +1,93 @@
+# Полный стек: telemt + telemt-admin + Prometheus + Grafana.
+#
+# Предполагает, что рядом лежат:
+#   - .env
+#   - config/telemt.toml          (конфиг telemt; внутри listen должен быть 0.0.0.0:9091,
+#                                  иначе Prometheus/telemt-admin не достанут до API)
+#   - config/telemt-admin.toml
+#   - config/prometheus.yml
+#   - config/grafana/provisioning/...
+#   - data/                       (SQLite telemt-admin)
+#
+# Запуск:
+#   cp .env.example .env
+#   docker compose -f docker-compose.observability.yml up -d
+#
+# Security note: /metrics telemt может требовать whitelist или auth.
+# Если /metrics защищён тем же auth_header, что и control API, добавьте
+# authorization- credentials в config/prometheus.yml (см. комментарий там).
+
+services:
+  telemt:
+    image: ${TELEMT_IMAGE:-telemt/telemt:latest}
+    restart: unless-stopped
+    volumes:
+      - ./config/telemt.toml:/etc/telemt.toml:ro
+    ports:
+      - "${TELEMT_PORT:-443}:443"
+    networks:
+      - telemt-net
+    # Внутри контейнера control API и /metrics доступны на порту 9091.
+    # Убедитесь, что в telemt.toml server.api.listen = "0.0.0.0:9091"
+    # (или хотя бы на интерфейсе контейнера), а whitelist включает
+    # подсеть Docker (например 172.16.0.0/12) или конкретные адреса.
+
+  telemt-admin:
+    image: ghcr.io/fgbm/telemt-admin:${TELEMT_ADMIN_VERSION:-latest}
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./config/telemt-admin.toml:/etc/telemt-admin/telemt-admin.toml:ro
+      - ./data:/var/lib/telemt-admin
+    environment:
+      TELEMT_ADMIN__RUNTIME__MODE: external
+      TELEMT_ADMIN__RUNTIME__LABEL: docker
+    networks:
+      - telemt-net
+    depends_on:
+      - telemt
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    restart: unless-stopped
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - telemt-net
+
+  grafana:
+    image: grafana/grafana:11.0.0
+    restart: unless-stopped
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    networks:
+      - telemt-net
+    depends_on:
+      - prometheus
+
+networks:
+  telemt-net:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:
