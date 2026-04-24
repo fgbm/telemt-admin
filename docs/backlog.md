@@ -34,7 +34,17 @@
 
 Сервер `telemt` уже отдаёт `/metrics`, поэтому `telemt-admin` должен уметь учитывать этот канал отдельно от control API.
 
-- Определить модель использования `/metrics`:
+### Готово (compose-стек)
+
+- [x] Пример `docker-compose.observability.yml` с `telemt`, `telemt-admin`, Prometheus и Grafana в одной сети.
+- [x] Минимальный `prometheus.yml` со scrape-config для `telemt`.
+- [x] Grafana provisioning: datasource + dashboard `Telemt Overview` (uptime, connections, traffic, top users, handshake errors, reject rate).
+- [x] README в `deploy/compose/` с инструкцией по запуску стека.
+- [x] Обновлены `docs/architecture.md` и `docs/runbook.md` — разделы по observability-стеку и security (`/metrics`, whitelist, auth).
+
+### Остаётся
+
+- Определить модель использования `/metrics` внутри самого бота:
   - только внешний Prometheus/VictoriaMetrics scrape;
   - scrape + краткая сводка в Telegram;
   - scrape + алерты + ссылка на внешний dashboard.

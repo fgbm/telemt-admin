@@ -18,6 +18,64 @@
 
 Переменные `TELEMT_ADMIN__*` (whitelist) применяются после TOML и удобны для Compose; см. `docs/adr/004-config-sources-and-docker-defaults.md`.
 
+## Observability-стек (Docker Compose)
+
+Для полноценного наблюдения за `telemt` доступен compose-файл `deploy/compose/docker-compose.observability.yml`. Он поднимает:
+
+- `telemt` — MTProto-прокси;
+- `telemt-admin` — Telegram-бот;
+- `prometheus` — TSDB и scraper метрик;
+- `grafana` — визуализация с преднастроенным дашбордом `Telemt Overview`.
+
+Все сервисы работают в одной Docker-сети `telemt-net`. Prometheus достаёт до `telemt:9091/metrics` по внутреннему DNS.
+
+### Предварительные условия
+
+1. Подготовьте `config/telemt.toml` с `server.api.enabled = true` и `listen = "0.0.0.0:9091"` (внутри контейнера должен быть доступен bind на все интерфейсы).
+2. Убедитесь, что `server.api.whitelist` включает Docker-подсеть. Минимальный вариант:
+   ```toml
+   whitelist = ["127.0.0.1/32", "::1/128", "172.16.0.0/12"]
+   ```
+   (точная подсеть зависит от Docker daemon settings; при необходимости укажите конкретную CIDR сети `telemt-net`.)
+3. Подготовьте `config/telemt-admin.toml` и `.env` (см. `deploy/compose/README.md`).
+
+### Запуск
+
+```bash
+cd deploy/compose
+docker compose -f docker-compose.observability.yml up -d
+```
+
+### Доступ
+
+- Prometheus: `http://<host>:9090`
+- Grafana: `http://<host>:3000` (логин/пароль из `.env`, по умолчанию `admin` / `admin`)
+
+### Если /metrics требует авторизации
+
+Если `telemt` требует тот же `auth_header` на `/metrics`, что и на control API:
+
+1. Отредактируйте `config/prometheus.yml`:
+   ```yaml
+   scrape_configs:
+     - job_name: 'telemt'
+       static_configs:
+         - targets: ['telemt:9091']
+       metrics_path: '/metrics'
+       authorization:
+         type: Bearer
+         credentials: "<тот же токен, что и в telemt.toml>"
+   ```
+2. Перезапустите Prometheus: `docker compose -f docker-compose.observability.yml restart prometheus`.
+
+### Если метрики на отдельном порту
+
+Если `telemt` отдаёт `/metrics` на порту, отличном от `9091`, измените `targets` в `config/prometheus.yml` и перезапустите Prometheus.
+
+### Примечание по именам метрик
+
+Grafana-дашборд использует ожидаемые имена метрик на основе структур control API (`telemt_uptime_seconds`, `telemt_current_connections`, `telemt_traffic_bytes_total` и др.). Если в вашей версии `telemt` имена отличаются, отредактируйте queries в дашборде через UI Grafana (или в JSON `config/grafana/dashboards/telemt-dashboard.json`) после развёртывания.
+
 ## Группы, рассылка, импорт и тексты бота
 
 - **Группы**: таблицы `user_groups` и `user_group_members`; опциональный общий срок группы — `user_groups.expires_at` (unix). В UI доступны сценарии «задать/изменить срок», «снять срок» и «применить срок группы ко всем»; последний выполняет PATCH `expiration` для участников (нужен включённый `[telemt_api]`).

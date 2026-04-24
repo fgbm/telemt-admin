@@ -71,6 +71,19 @@
 - `telemt_backend` должен оставаться единой внешней точкой выбора между control API и legacy file/systemd path; детали HTTP-клиента, DTO и mapping должны жить во внутренних подмодулях backend-слоя, а не утекать в handlers.
 - `monitor` использует только `BotState` и структурированные ответы `telemt_backend`; он не должен напрямую читать БД-схему `telemt` или строить UI-экраны.
 
+## Observability-стек
+
+Проект предоставляет опциональный compose-стек (`deploy/compose/docker-compose.observability.yml`) с Prometheus и Grafana:
+
+- **Prometheus** скрейпит `/metrics` от `telemt` (ожидается endpoint на порту control API или отдельном метрик-порту).
+- **Grafana** поднимается с преднастроенным datasource и provisioned дашбордом `Telemt Overview` (uptime, connections, traffic, top users, handshake errors).
+- **Сеть**: все сервисы (`telemt`, `telemt-admin`, `prometheus`, `grafana`) находятся в одной Docker bridge-сети `telemt-net`; Prometheus достаёт до `telemt` по DNS-имени.
+
+Security:
+- Если `/metrics` защищён `whitelist`, в `telemt.toml` нужно разрешить Docker-подсеть (обычно `172.16.0.0/12` или диапазон сети `telemt-net`).
+- Если `/metrics` требует `auth_header`, токен прописывается в `config/prometheus.yml` (см. закомментированный блок `authorization`).
+- Grafana по умолчанию создаёт администратора с credentials из `.env`; на production замените дефолтный пароль.
+
 Новые runtime-возможности:
 
 - `telemt_backend` умеет получать live-данные пользователя из `GET /v1/users/{username}` и менять лимиты через `PATCH /v1/users/{username}`;
