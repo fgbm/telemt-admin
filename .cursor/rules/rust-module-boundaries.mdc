@@ -12,6 +12,7 @@ alwaysApply: false
   - Работа с `telemt.toml` в `src/telemt_cfg.rs`
   - выбор режима развёртывания и capability UI в `src/runtime/`
   - низкоуровневые вызовы `systemctl`/`journalctl` только в `src/service.rs` (режим systemd)
+  - Telegram Mini App (HTTP API, проверка `initData`, статика) в `src/webapp/`; доменные операции — только через `pub(crate)` re-export из `bot::handlers`, без прямой работы с `telemt_cfg`/`service`
 - Допустимо разносить крупные доменные участки по подмодулям:
   - `src/db/*.rs` для репозиториев и миграций
   - feature-oriented модули в `src/bot/handlers/**`, если это уменьшает god-files

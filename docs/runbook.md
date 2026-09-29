@@ -287,3 +287,28 @@ Restart обязателен, если менялись параметры `[ser
 3. оставить `telemt` работающим в прежнем режиме;
 4. перезапустить `telemt-admin`;
 5. убедиться, что approve, `/link` и delete снова работают через legacy-path.
+
+## Telegram Mini App (ADR 005)
+
+Включение (`/etc/telemt-admin.toml`):
+
+```toml
+[webapp]
+enabled = true
+listen = "127.0.0.1:8090"
+public_url = "https://app.example.com/"
+# init_data_max_age_secs = 3600
+```
+
+Reverse proxy (Caddy): `app.example.com { reverse_proxy 127.0.0.1:8090 }`. HTTP-сервер не публикуется наружу без TLS-терминатора; в Docker — только `127.0.0.1:8090:8090` или внутренняя сеть.
+
+Проверка после запуска:
+
+- в журнале: `Mini App: HTTP-сервер запущен` и `кнопка меню Mini App установлена`;
+- `curl -s http://127.0.0.1:8090/healthz` → `ok`;
+- `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8090/api/me` → `401` (без `initData`);
+- в Telegram: кнопка меню бота открывает приложение, админ видит вкладки «Заявки», «Пользователи», «Токены», «Статус».
+
+Если порт занят или `listen` некорректен, бот продолжает работать, приложение не стартует, кнопка меню сбрасывается к стандартной (`Mini App: не удалось открыть порт…`).
+
+Откат: `enabled = false` (или `TELEMT_ADMIN__WEBAPP__ENABLED=false`) и перезапуск — сервер не запускается, кнопка меню возвращается к стандартной.

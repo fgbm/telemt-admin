@@ -19,7 +19,8 @@
 - `src/telemt_backend/control_api.rs`, `src/telemt_backend/legacy.rs`, `src/telemt_backend/mappers.rs`, `src/telemt_backend/types.rs` — реализация API-first backend, legacy fallback, чистые мапперы и публичные типы backend-слоя.
 - `src/runtime/` — универсальный слой управления процессом telemt (`TelemtRuntime`: systemd / external / none) и capability-модель для UI.
 - `src/service.rs` — реализация вызовов `systemctl` и `journalctl` для режима `systemd`.
-- `src/link.rs` — генерация секрета и `tg://proxy`-ссылки.
+- `src/link.rs` — генерация секрета, `tg://proxy`-ссылки, извлечение секрета из ссылки и `tg://webproxy`-ссылки.
+- `src/webapp/` — Telegram Mini App (ADR 005): `mod.rs` — запуск HTTP-сервера и кнопка меню, `auth.rs` — проверка `initData`, `api.rs` — JSON API и отдача статики, `assets/` — HTML/CSS/JS фронтенда (вшиты в бинарник). Доменные операции берёт из `bot::handlers` через `pub(crate)` re-export.
 - `src/bot/handlers.rs` — сборка схемы обработчиков.
 - `src/bot/handlers/commands/mod.rs` — slash-команды как точки входа в основные разделы и сценарии бота.
 - `src/bot/handlers/callbacks/mod.rs` — inline callbacks и wizard-навигация.

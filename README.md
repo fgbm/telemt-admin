@@ -448,6 +448,18 @@ Deep links для администраторов поддерживают не �
   - `timeout_ms` — таймаут HTTP-клиента.
   - `allow_file_fallback` — разрешить fallback на legacy-конфиг и `systemd`, если API недоступен.
   - `prefer_api_links` — приоритетно использовать ссылки, которые вернул control API.
+- `[web_proxy]` — WEB-прокси `telemt` (тип прокси WEB в Telegram Desktop 7.1+, `telemt` 3.5+):
+  - `host` — публичный hostname WEB-прокси без схемы, порта и пути, например `lk.example.com`. Если задан, бот добавляет к каждому сообщению со ссылкой блок с `tg://webproxy?server=<host>&secret=<dd>…`; секрет берётся из обычной ссылки пользователя. Пусто — WEB-ссылки не выдаются.
+  - `secret_mode` — `dd` (по умолчанию) или `plain`; должен совпадать с `secret_mode` профиля в `[[web.vhosts.profiles]]` `telemt`.
+  - Бот **не** создаёт WEB-профили в `telemt`: без профиля у пользователя WEB-ссылка не заработает.
+- `[webapp]` — встроенное веб-приложение Telegram Mini App (ADR 005):
+  - `enabled` — запустить HTTP-сервер приложения (default: `false`).
+  - `listen` — адрес сервера (default: `127.0.0.1:8090`); наружу публикуется только через HTTPS reverse proxy.
+  - `public_url` — публичный HTTPS URL, например `https://app.example.com/`; при заданном URL бот ставит кнопку меню, открывающую приложение.
+  - `init_data_max_age_secs` — максимальный возраст подписанного `initData`, от 60 до 86400 (default: `3600`); значение вне диапазона — ошибка конфигурации.
+  - `menu_button_text` — текст кнопки меню (default: `Прокси`).
+  - Пользователь видит статус доступа, обычную и WEB-ссылку (копирование, QR, «Подключить»), инструкцию и может отправить invite-токен боту. Администратор — заявки, пользователей (поиск, карточка, удаление), invite-токены (создание, отзыв) и статус `telemt`.
+  - Пример reverse proxy (Caddy): `app.example.com { reverse_proxy 127.0.0.1:8090 }`.
 - `[security]` — настройки безопасности invite-токенов (срок действия **ссылки** и лимит активаций; не путать с лимитами пользователя в `telemt`):
   - `default_token_days` — срок действия invite-ссылки по умолчанию, в днях (default: 14).
   - `max_token_days` — максимально допустимый срок действия invite-ссылки (default: 180).
@@ -465,6 +477,7 @@ Deep links для администраторов поддерживают не �
   - `invite_followup_prompt` — текст после кнопки «Ввести invite-токен».
   - `user_link_template` — шаблон сообщения со ссылкой; поддерживает `{link}`.
   - `access_approved_template` — шаблон auto-approve; поддерживает `{link}`.
+  - `web_link_template` — блок с WEB-ссылкой, который добавляется к сообщениям со ссылкой при заданном `[web_proxy] host`; поддерживает `{web_link}`.
   - `request_submitted` — сообщение после создания manual-заявки.
   - `request_pending` — сообщение, если заявка уже ожидает решения.
   - `request_rejected` — сообщение для отклонённой заявки.
