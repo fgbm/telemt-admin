@@ -26,7 +26,8 @@ use legacy::LegacyTelemtBackend;
 pub use types::{
     DeleteUserResult, ProvisionedUser, TelemtApiError, TelemtBackendMode, TelemtConnectionTopUser,
     TelemtConnectionsSummary, TelemtMonitorSnapshot, TelemtRuntimeEvent,
-    TelemtRuntimeSnapshot, TelemtStatsSummary, TelemtUserInfo, TelemtUserPatch,
+    TelemtRuntimeSnapshot, TelemtStatsSummary, TelemtUserActivity, TelemtUserInfo,
+    TelemtUserPatch,
 };
 
 #[derive(Clone)]
@@ -136,6 +137,14 @@ impl TelemtBackend {
         match self.inner.as_ref() {
             TelemtBackendInner::Legacy(_) => Ok(None),
             TelemtBackendInner::Api(api) => api.connections_summary(limit).await,
+        }
+    }
+
+    /// Активность всех пользователей (только счётчики); `None` в legacy-режиме.
+    pub async fn user_activity(&self) -> Result<Option<Vec<TelemtUserActivity>>, anyhow::Error> {
+        match self.inner.as_ref() {
+            TelemtBackendInner::Legacy(_) => Ok(None),
+            TelemtBackendInner::Api(api) => api.user_activity().await.map(Some),
         }
     }
 

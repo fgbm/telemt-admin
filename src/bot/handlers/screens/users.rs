@@ -107,12 +107,16 @@ pub async fn send_user_qr_to_admin(
         .build_user_link(telemt_username, secret_opt)
         .await?;
     let qr_png = build_user_qr_png_bytes(&link)?;
-    let caption = format!(
+    let mut caption = format!(
         "👤 {} ({})\n\n🔗 {}",
         user_display_name(user),
         user.tg_user_id,
         link
     );
+    if let Some(web_link) = state.config.web_proxy_link(&link) {
+        caption.push_str("\n\n");
+        caption.push_str(&state.config.bot_messages.web_link_text(&web_link));
+    }
 
     if let Some((chat_id, _)) = callback_message_target(q) {
         bot.send_photo(

@@ -1,6 +1,7 @@
 use super::api_dto::{ApiUserInfo, RuntimeConnectionUserData, UserLinks};
 use super::types::{
-    TelemtBackendMode, TelemtConnectionTopUser, TelemtConnectionsSummary, TelemtUserInfo,
+    TelemtBackendMode, TelemtConnectionTopUser, TelemtConnectionsSummary, TelemtUserActivity,
+    TelemtUserInfo,
 };
 
 pub(super) fn pick_best_link(links: &UserLinks) -> Option<String> {
@@ -48,6 +49,19 @@ pub(super) fn map_connection_top_user(user: RuntimeConnectionUserData) -> Telemt
     }
 }
 
+/// Оставляет из `/v1/stats/users` только счётчики активности.
+pub(crate) fn map_user_activity(users: Vec<ApiUserInfo>) -> Vec<TelemtUserActivity> {
+    users
+        .into_iter()
+        .map(|u| TelemtUserActivity {
+            username: u.username,
+            current_connections: u.current_connections,
+            active_unique_ips: u.active_unique_ips,
+            total_octets: u.total_octets,
+        })
+        .collect()
+}
+
 pub(crate) fn build_summary_from_user_list(
     users: Vec<ApiUserInfo>,
     limit: usize,
@@ -93,10 +107,10 @@ pub(crate) fn build_summary_from_user_list(
 mod tests {
     use super::{
         build_summary_from_user_list, collect_links, map_api_user_info, map_connection_top_user,
-        pick_best_link,
+        map_user_activity, pick_best_link,
     };
     use crate::telemt_backend::api_dto::{ApiUserInfo, RuntimeConnectionUserData, UserLinks};
-    use crate::telemt_backend::types::TelemtBackendMode;
+    use crate::telemt_backend::types::{TelemtBackendMode, TelemtUserActivity};
 
     #[test]
     fn pick_best_link_prefers_tls_then_secure_then_classic() {
@@ -206,6 +220,39 @@ mod tests {
         assert_eq!(summary.active_users, 0);
         assert!(summary.top_by_connections.is_empty());
         assert!(summary.top_by_throughput.is_empty());
+    }
+
+    #[test]
+    fn map_user_activity_keeps_only_counters() {
+        let user = ApiUserInfo {
+            username: "tg_1".to_string(),
+            user_ad_tag: None,
+            max_tcp_conns: None,
+            expiration_rfc3339: None,
+            data_quota_bytes: None,
+            max_unique_ips: None,
+            current_connections: 3,
+            active_unique_ips: 2,
+            active_unique_ips_list: vec!["198.51.100.1".to_string(), "198.51.100.2".to_string()],
+            recent_unique_ips: 4,
+            recent_unique_ips_list: Vec::new(),
+            total_octets: 1024,
+            links: UserLinks {
+                classic: Vec::new(),
+                secure: Vec::new(),
+                tls: vec!["tg://proxy?secret=ee00".to_string()],
+            },
+        };
+
+        assert_eq!(
+            map_user_activity(vec![user]),
+            vec![TelemtUserActivity {
+                username: "tg_1".to_string(),
+                current_connections: 3,
+                active_unique_ips: 2,
+                total_octets: 1024,
+            }]
+        );
     }
 
     #[test]

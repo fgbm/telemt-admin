@@ -49,6 +49,113 @@ pub struct Config {
     /// Режим управления процессом telemt на хосте (systemd / внешний supervisor / без unit)
     #[serde(default)]
     pub runtime: Option<RuntimeSection>,
+    /// WEB-прокси telemt (`tg://webproxy`): при заданном `host` бот добавляет WEB-ссылку к обычной
+    #[serde(default)]
+    pub web_proxy: WebProxyConfig,
+    /// Встроенное веб-приложение (Telegram Mini App)
+    #[serde(default)]
+    pub webapp: WebAppConfig,
+}
+
+/// Настройки Telegram Mini App: встроенный HTTP-сервер за TLS-терминатором.
+#[derive(Debug, Clone, Deserialize)]
+pub struct WebAppConfig {
+    /// Запускать HTTP-сервер Mini App
+    #[serde(default)]
+    pub enabled: bool,
+    /// Адрес HTTP-сервера; публиковать только через HTTPS reverse proxy
+    #[serde(default = "default_webapp_listen")]
+    pub listen: String,
+    /// Публичный HTTPS URL приложения для кнопки меню бота, например `https://app.example.com/`
+    #[serde(default)]
+    pub public_url: Option<String>,
+    /// Максимальный возраст `initData` в секундах
+    #[serde(default = "default_webapp_init_data_max_age_secs")]
+    pub init_data_max_age_secs: i64,
+    /// Текст кнопки меню бота, открывающей приложение
+    #[serde(default = "default_webapp_menu_button_text")]
+    pub menu_button_text: String,
+}
+
+impl Default for WebAppConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            listen: default_webapp_listen(),
+            public_url: None,
+            init_data_max_age_secs: default_webapp_init_data_max_age_secs(),
+            menu_button_text: default_webapp_menu_button_text(),
+        }
+    }
+}
+
+impl WebAppConfig {
+    /// Публичный URL, если он задан и использует HTTPS (требование Telegram).
+    pub fn https_public_url(&self) -> Option<String> {
+        let url = self.public_url.as_deref()?.trim();
+        (url.starts_with("https://") && url.len() > "https://".len()).then(|| url.to_string())
+    }
+}
+
+fn default_webapp_listen() -> String {
+    "127.0.0.1:8090".to_string()
+}
+
+fn default_webapp_init_data_max_age_secs() -> i64 {
+    3_600
+}
+
+/// Допустимый диапазон `webapp.init_data_max_age_secs`, секунд.
+pub const WEBAPP_INIT_DATA_MAX_AGE_RANGE: std::ops::RangeInclusive<i64> = 60..=86_400;
+
+fn default_webapp_menu_button_text() -> String {
+    "Прокси".to_string()
+}
+
+/// Формат секрета в ссылке `tg://webproxy`; должен совпадать с `secret_mode` профиля telemt.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WebSecretMode {
+    #[default]
+    Dd,
+    Plain,
+}
+
+/// Настройки выдачи WEB-ссылок. Профили `[[web.vhosts.profiles]]` в telemt бот не создаёт.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct WebProxyConfig {
+    /// Публичный hostname WEB-прокси (FQDN без схемы, порта и пути); пусто — WEB-ссылки не выдаются
+    #[serde(default)]
+    pub host: Option<String>,
+    /// Формат секрета: `dd` (по умолчанию) или `plain`
+    #[serde(default)]
+    pub secret_mode: WebSecretMode,
+}
+
+impl WebProxyConfig {
+    /// Нормализованный hostname или `None`, если WEB не настроен или значение некорректно.
+    pub fn normalized_host(&self) -> Option<String> {
+        let host = self
+            .host
+            .as_deref()?
+            .trim()
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+        let valid = !host.is_empty()
+            && host.len() <= 253
+            && host.contains('.')
+            && host
+                .split('.')
+                .all(|label| {
+                    !label.is_empty()
+                        && !label.starts_with('-')
+                        && !label.ends_with('-')
+                        && label
+                            .chars()
+                            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-')
+                });
+        valid.then_some(host)
+    }
 }
 
 /// Тексты интерфейса; пустые/отсутствующие поля — поведение по умолчанию (как в коде до настройки).
@@ -69,6 +176,9 @@ pub struct BotMessages {
     /// Шаблон сообщения после авто-одобрения. Поддерживает `{link}`.
     #[serde(default)]
     pub access_approved_template: Option<String>,
+    /// Блок с WEB-ссылкой, добавляемый к сообщениям со ссылкой. Поддерживает `{web_link}`.
+    #[serde(default)]
+    pub web_link_template: Option<String>,
     /// Сообщение после отправки manual-заявки.
     #[serde(default)]
     pub request_submitted: Option<String>,
@@ -211,6 +321,15 @@ impl BotMessages {
             self.user_link_template.as_deref(),
             DEFAULT,
             &[("link", link.to_string())],
+        )
+    }
+
+    pub fn web_link_text(&self, web_link: &str) -> String {
+        const DEFAULT: &str = "WEB-прокси (Telegram Desktop 7.1+, тип WEB):\n\n{web_link}";
+        Self::render_template(
+            self.web_link_template.as_deref(),
+            DEFAULT,
+            &[("web_link", web_link.to_string())],
         )
     }
 
@@ -621,6 +740,9 @@ impl Config {
                 "notifications.health_check_interval_secs должен быть положительным"
             ));
         }
+        for warning in config.validate_web_sections()? {
+            tracing::warn!("{warning}");
+        }
         tracing::info!(
             admin_count = config.admin_ids.len(),
             bot_username = ?config.configured_bot_username(),
@@ -699,6 +821,64 @@ impl Config {
             .unwrap_or_else(|| self.service_name.clone())
     }
 
+    /// Проверяет секции `[web_proxy]` и `[webapp]`: ошибка — для недопустимых значений,
+    /// предупреждения — для настроек, которые молча отключат функцию.
+    pub fn validate_web_sections(&self) -> Result<Vec<String>, anyhow::Error> {
+        let mut warnings = Vec::new();
+        let max_age = self.webapp.init_data_max_age_secs;
+        if !WEBAPP_INIT_DATA_MAX_AGE_RANGE.contains(&max_age) {
+            return Err(anyhow::anyhow!(
+                "webapp.init_data_max_age_secs должен быть от {} до {} секунд, задано {max_age}",
+                WEBAPP_INIT_DATA_MAX_AGE_RANGE.start(),
+                WEBAPP_INIT_DATA_MAX_AGE_RANGE.end()
+            ));
+        }
+        if let Some(host) = self.web_proxy.host.as_deref()
+            && !host.trim().is_empty()
+            && self.web_proxy.normalized_host().is_none()
+        {
+            warnings.push(format!(
+                "web_proxy.host `{host}` некорректен (нужен FQDN без схемы, порта и пути): WEB-ссылки выдаваться не будут"
+            ));
+        }
+        if self.webapp.enabled && self.webapp.https_public_url().is_none() {
+            warnings.push(
+                "webapp.public_url не задан или не HTTPS: кнопка меню Mini App не будет установлена"
+                    .to_string(),
+            );
+        }
+        Ok(warnings)
+    }
+
+    /// Текст выдачи ссылки пользователю: шаблон `user_link_template` + блок WEB-ссылки.
+    pub fn user_link_message(&self, link: &str) -> String {
+        self.with_web_proxy_link(self.bot_messages.user_link_text(link), link)
+    }
+
+    /// Текст после авто-одобрения: шаблон `access_approved_template` + блок WEB-ссылки.
+    pub fn access_approved_message(&self, link: &str) -> String {
+        self.with_web_proxy_link(self.bot_messages.access_approved_text(link), link)
+    }
+
+    /// WEB-ссылка (`tg://webproxy`) для пользователя, вычисленная из его обычной ссылки.
+    pub fn web_proxy_link(&self, native_link: &str) -> Option<String> {
+        let host = self.web_proxy.normalized_host()?;
+        let secret = crate::link::extract_user_secret(native_link)?;
+        Some(crate::link::build_web_proxy_link(
+            &host,
+            &secret,
+            self.web_proxy.secret_mode,
+        ))
+    }
+
+    /// Добавляет к тексту блок с WEB-ссылкой, если WEB-прокси настроен.
+    pub fn with_web_proxy_link(&self, text: String, native_link: &str) -> String {
+        match self.web_proxy_link(native_link) {
+            Some(web_link) => format!("{text}\n\n{}", self.bot_messages.web_link_text(&web_link)),
+            None => text,
+        }
+    }
+
     /// Метка для UI при `external`.
     pub fn effective_external_label(&self) -> Option<String> {
         self.runtime.as_ref().and_then(|r| {
@@ -714,7 +894,7 @@ impl Config {
 mod tests {
     use super::{
         default_runtime_mode, BotMessages, Config, NotificationsConfig, RuntimeSection,
-        SecurityConfig, TelemtApiConfig,
+        SecurityConfig, TelemtApiConfig, WebAppConfig, WebProxyConfig, WebSecretMode,
     };
     use crate::runtime::RuntimeMode;
     use std::path::PathBuf;
@@ -733,7 +913,140 @@ mod tests {
             notifications: NotificationsConfig::default(),
             bot_messages: BotMessages::default(),
             runtime: None,
+            web_proxy: WebProxyConfig::default(),
+            webapp: WebAppConfig::default(),
         }
+    }
+
+    #[test]
+    fn validate_web_sections_checks_max_age_and_host() {
+        let mut config = sample_config();
+        assert_eq!(config.webapp.init_data_max_age_secs, 3_600);
+        assert!(config.validate_web_sections().unwrap().is_empty());
+
+        config.webapp.init_data_max_age_secs = 0;
+        assert!(config.validate_web_sections().is_err());
+        config.webapp.init_data_max_age_secs = 86_401;
+        assert!(config.validate_web_sections().is_err());
+        config.webapp.init_data_max_age_secs = 60;
+
+        config.web_proxy.host = Some("https://lk.example.com".to_string());
+        config.webapp.enabled = true;
+        let warnings = config.validate_web_sections().unwrap();
+        assert_eq!(warnings.len(), 2, "{warnings:?}");
+        assert!(warnings[0].contains("web_proxy.host"));
+        assert!(warnings[1].contains("webapp.public_url"));
+    }
+
+    #[test]
+    fn link_messages_use_templates_and_web_block() {
+        let mut config = sample_config();
+        config.web_proxy.host = Some("lk.example.com".to_string());
+        config.web_proxy.secret_mode = WebSecretMode::Plain;
+
+        let text = config.user_link_message(PROXY_LINK);
+        assert!(text.starts_with("Ваша ссылка на прокси:\n\ntg://proxy?"));
+        assert!(text.ends_with(
+            "WEB-прокси (Telegram Desktop 7.1+, тип WEB):\n\ntg://webproxy?server=lk.example.com&secret=0123456789abcdef0123456789abcdef"
+        ));
+        assert!(config.access_approved_message(PROXY_LINK).starts_with("Доступ одобрен!"));
+    }
+
+    #[test]
+    fn webapp_public_url_requires_https() {
+        let mut webapp = WebAppConfig::default();
+        assert!(!webapp.enabled);
+        assert_eq!(webapp.listen, "127.0.0.1:8090");
+        assert_eq!(webapp.https_public_url(), None);
+
+        webapp.public_url = Some("http://app.example.com/".to_string());
+        assert_eq!(webapp.https_public_url(), None);
+
+        webapp.public_url = Some(" https://app.example.com/ ".to_string());
+        assert_eq!(webapp.https_public_url().as_deref(), Some("https://app.example.com/"));
+    }
+
+    const PROXY_LINK: &str = "tg://proxy?server=proxy.example.com&port=443&secret=ee0123456789abcdef0123456789abcdef6578616d706c652e636f6d";
+
+    #[test]
+    fn web_proxy_link_is_absent_without_host() {
+        let config = sample_config();
+
+        assert_eq!(config.web_proxy_link(PROXY_LINK), None);
+        assert_eq!(
+            config.with_web_proxy_link("Ваша ссылка".to_string(), PROXY_LINK),
+            "Ваша ссылка"
+        );
+    }
+
+    #[test]
+    fn web_proxy_link_is_built_from_native_link() {
+        let mut config = sample_config();
+        config.web_proxy = WebProxyConfig {
+            host: Some(" LK.Example.com. ".to_string()),
+            secret_mode: WebSecretMode::Dd,
+        };
+
+        assert_eq!(
+            config.web_proxy_link(PROXY_LINK).as_deref(),
+            Some("tg://webproxy?server=lk.example.com&secret=dd0123456789abcdef0123456789abcdef")
+        );
+    }
+
+    #[test]
+    fn web_proxy_link_ignores_invalid_host() {
+        let mut config = sample_config();
+        for host in ["", "lk.example.com/path", "https://lk.example.com", "lk example.com"] {
+            config.web_proxy.host = Some(host.to_string());
+            assert_eq!(config.web_proxy_link(PROXY_LINK), None, "host {host:?}");
+        }
+    }
+
+    #[test]
+    fn with_web_proxy_link_appends_block_after_text() {
+        let mut config = sample_config();
+        config.web_proxy.host = Some("lk.example.com".to_string());
+
+        let text = config.with_web_proxy_link("Ваша ссылка:\n\nX".to_string(), PROXY_LINK);
+
+        assert_eq!(
+            text,
+            "Ваша ссылка:\n\nX\n\nWEB-прокси (Telegram Desktop 7.1+, тип WEB):\n\n\
+             tg://webproxy?server=lk.example.com&secret=dd0123456789abcdef0123456789abcdef"
+        );
+    }
+
+    #[test]
+    fn with_web_proxy_link_uses_custom_template() {
+        let mut config = sample_config();
+        config.web_proxy.host = Some("lk.example.com".to_string());
+        config.bot_messages.web_link_template = Some("WEB: {web_link}".to_string());
+
+        assert_eq!(
+            config.with_web_proxy_link("A".to_string(), PROXY_LINK),
+            "A\n\nWEB: tg://webproxy?server=lk.example.com&secret=dd0123456789abcdef0123456789abcdef"
+        );
+    }
+
+    #[test]
+    fn with_web_proxy_link_keeps_text_when_secret_is_unknown() {
+        let mut config = sample_config();
+        config.web_proxy.host = Some("lk.example.com".to_string());
+
+        assert_eq!(
+            config.with_web_proxy_link("A".to_string(), "tg://proxy?server=x&port=443"),
+            "A"
+        );
+    }
+
+    #[test]
+    fn web_proxy_config_deserializes_from_toml() {
+        let parsed: WebProxyConfig =
+            toml::from_str("host = \"lk.example.com\"\nsecret_mode = \"plain\"\n").unwrap();
+
+        assert_eq!(parsed.host.as_deref(), Some("lk.example.com"));
+        assert_eq!(parsed.secret_mode, WebSecretMode::Plain);
+        assert_eq!(WebProxyConfig::default().secret_mode, WebSecretMode::Dd);
     }
 
     #[test]

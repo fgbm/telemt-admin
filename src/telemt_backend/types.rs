@@ -92,6 +92,15 @@ pub struct TelemtConnectionTopUser {
     pub total_octets: u64,
 }
 
+/// Текущая активность одного пользователя telemt (без ссылок, секретов и IP-адресов).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TelemtUserActivity {
+    pub username: String,
+    pub current_connections: u64,
+    pub active_unique_ips: usize,
+    pub total_octets: u64,
+}
+
 #[derive(Debug, Clone)]
 pub struct TelemtConnectionsSummary {
     pub current_connections: u64,

@@ -177,15 +177,21 @@ async fn send_existing_user_link_message(
         .telemt_backend
         .build_user_link(telemt_user, secret_opt)
         .await?;
-    bot.send_message(chat_id, state.config.bot_messages.user_link_text(&link))
+    bot.send_message(chat_id, state.config.user_link_message(&link))
         .await?;
     Ok(())
 }
+
+/// Сериализует одобрения: бот и Mini App работают в одном процессе, и без блокировки
+/// два одновременных одобрения одной заявки вызвали бы provision в telemt дважды
+/// с разными секретами (в БД и у пользователя остался бы секрет первого вызова).
+static APPROVAL_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 pub async fn approve_request_and_build_link(
     state: &BotState,
     request_id: i64,
 ) -> Result<Option<(RegistrationRequest, String)>, anyhow::Error> {
+    let _approval = APPROVAL_LOCK.lock().await;
     let request = match state.db.get_pending_by_id(request_id).await? {
         Some(request) => request,
         None => return Ok(None),
@@ -226,6 +232,7 @@ pub async fn approve_user_direct_and_build_link(
     tg_display_name: Option<&str>,
     invite_token_id: Option<i64>,
 ) -> Result<String, anyhow::Error> {
+    let _approval = APPROVAL_LOCK.lock().await;
     let telemt_user = telemt_username(tg_user_id);
     let secret = generate_user_secret();
     let provisioned = state
@@ -363,7 +370,7 @@ pub async fn process_invite_token(
                         .telemt_backend
                         .build_user_link(&telemt_username(tg_user_id), sec)
                         .await?;
-                    bot.send_message(msg.chat.id, state.config.bot_messages.user_link_text(&link))
+                    bot.send_message(msg.chat.id, state.config.user_link_message(&link))
                         .await?;
                     clear_wizard_state(state, tg_user_id).await?;
                 }
@@ -405,7 +412,7 @@ pub async fn process_invite_token(
             .await?;
             bot.send_message(
                 msg.chat.id,
-                state.config.bot_messages.access_approved_text(&link),
+                state.config.access_approved_message(&link),
             )
             .await?;
             notify_auto_approve(
@@ -451,7 +458,7 @@ pub async fn send_user_link(
                     None,
                 )
                 .await?;
-                bot.send_message(chat_id, state.config.bot_messages.user_link_text(&link))
+                bot.send_message(chat_id, state.config.user_link_message(&link))
                     .await?;
             } else if try_auto_import_remote_user_by_tg_id(
                 state,

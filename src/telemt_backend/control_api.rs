@@ -15,11 +15,14 @@ use super::api_dto::{
     SecurityPostureData, StatsSummaryData, SystemInfoData, UpstreamQualityTop, UserInfo,
 };
 use super::legacy::LegacyTelemtBackend;
-use super::mappers::{build_summary_from_user_list, map_api_user_info, map_connection_top_user, pick_best_link};
+use super::mappers::{
+    build_summary_from_user_list, map_api_user_info, map_connection_top_user, map_user_activity,
+    pick_best_link,
+};
 use super::types::{
     DeleteUserResult, ProvisionedUser, TelemtApiError, TelemtBackendMode, TelemtConnectionsSummary,
     TelemtMonitorSnapshot, TelemtRuntimeEvent, TelemtRuntimeSnapshot, TelemtStatsSummary,
-    TelemtUserInfo, TelemtUserPatch,
+    TelemtUserActivity, TelemtUserInfo, TelemtUserPatch,
 };
 
 pub(crate) struct ApiTelemtBackend {
@@ -339,6 +342,10 @@ impl ApiTelemtBackend {
     ) -> Result<TelemtConnectionsSummary, anyhow::Error> {
         let users = self.list_users().await?;
         Ok(build_summary_from_user_list(users, limit))
+    }
+
+    pub(crate) async fn user_activity(&self) -> Result<Vec<TelemtUserActivity>, anyhow::Error> {
+        Ok(map_user_activity(self.list_users().await?))
     }
 
     async fn list_users(&self) -> Result<Vec<ApiUserInfo>, anyhow::Error> {

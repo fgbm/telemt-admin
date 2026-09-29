@@ -12,6 +12,7 @@ mod service;
 mod telemt_backend;
 mod telemt_cfg;
 mod update;
+mod webapp;
 
 use clap::Parser;
 use std::sync::Arc;
@@ -76,7 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         telemt_runtime.clone(),
     )?;
 
-    let bot = Bot::new(token);
+    let bot = Bot::new(token.clone());
     let from_get_me = match bot.get_me().await {
         Ok(me) => me.user.username.clone(),
         Err(error) => {
@@ -135,6 +136,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         bot_username,
     };
     monitor::spawn_monitor(bot.clone(), state.clone());
+    webapp::start(&bot, state.clone(), token).await;
     tracing::info!("Dispatcher initialized, bot is ready");
 
     let state_for_cleanup = state.clone();

@@ -162,6 +162,36 @@ pub fn apply(config: &mut Config) -> Result<Vec<String>, anyhow::Error> {
         applied.push("TELEMT_ADMIN__BOT_MESSAGES__ACCESS_APPROVED_TEMPLATE".to_string());
     }
 
+    if let Some(v) = read_nonempty("BOT_MESSAGES__WEB_LINK_TEMPLATE") {
+        config.bot_messages.web_link_template = Some(v);
+        applied.push("TELEMT_ADMIN__BOT_MESSAGES__WEB_LINK_TEMPLATE".to_string());
+    }
+
+    if let Some(v) = read_nonempty("WEB_PROXY__HOST") {
+        config.web_proxy.host = Some(v);
+        applied.push("TELEMT_ADMIN__WEB_PROXY__HOST".to_string());
+    }
+
+    if let Some(v) = read_nonempty("WEB_PROXY__SECRET_MODE") {
+        config.web_proxy.secret_mode = parse_web_secret_mode(&v)?;
+        applied.push("TELEMT_ADMIN__WEB_PROXY__SECRET_MODE".to_string());
+    }
+
+    if let Some(v) = read_nonempty("WEBAPP__ENABLED") {
+        config.webapp.enabled = parse_bool(&v)?;
+        applied.push("TELEMT_ADMIN__WEBAPP__ENABLED".to_string());
+    }
+
+    if let Some(v) = read_nonempty("WEBAPP__LISTEN") {
+        config.webapp.listen = v;
+        applied.push("TELEMT_ADMIN__WEBAPP__LISTEN".to_string());
+    }
+
+    if let Some(v) = read_nonempty("WEBAPP__PUBLIC_URL") {
+        config.webapp.public_url = Some(v);
+        applied.push("TELEMT_ADMIN__WEBAPP__PUBLIC_URL".to_string());
+    }
+
     if let Some(v) = read_nonempty("BOT_MESSAGES__REQUEST_SUBMITTED") {
         config.bot_messages.request_submitted = Some(v);
         applied.push("TELEMT_ADMIN__BOT_MESSAGES__REQUEST_SUBMITTED".to_string());
@@ -313,6 +343,16 @@ fn read_nonempty(suffix: &str) -> Option<String> {
     })
 }
 
+fn parse_web_secret_mode(s: &str) -> Result<crate::config::WebSecretMode, anyhow::Error> {
+    match s.trim().to_ascii_lowercase().as_str() {
+        "dd" => Ok(crate::config::WebSecretMode::Dd),
+        "plain" => Ok(crate::config::WebSecretMode::Plain),
+        _ => Err(anyhow::anyhow!(
+            "TELEMT_ADMIN__WEB_PROXY__SECRET_MODE: ожидается dd или plain"
+        )),
+    }
+}
+
 fn parse_bool(s: &str) -> Result<bool, anyhow::Error> {
     match s.trim().to_lowercase().as_str() {
         "1" | "true" | "yes" | "on" => Ok(true),
@@ -364,6 +404,15 @@ fn default_runtime_section() -> crate::config::RuntimeSection {
 mod tests {
     use super::{parse_admin_ids, parse_bool, parse_runtime_mode};
     use crate::runtime::RuntimeMode;
+
+    #[test]
+    fn parse_web_secret_mode_accepts_only_known_values() {
+        use crate::config::WebSecretMode;
+        assert_eq!(super::parse_web_secret_mode(" DD ").unwrap(), WebSecretMode::Dd);
+        assert_eq!(super::parse_web_secret_mode("plain").unwrap(), WebSecretMode::Plain);
+        assert!(super::parse_web_secret_mode("ee").is_err());
+        assert!(super::parse_web_secret_mode("").is_err());
+    }
 
     #[test]
     fn parse_bool_accepts_common_truthy_and_falsy_values() {

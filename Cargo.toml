@@ -28,6 +28,9 @@ reqwest = { version = "0.12", default-features = false, features = [
 ] }
 semver = "1.0"
 sha2 = "0.10"
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json", "query"] }
+hmac = "0.12"
+form_urlencoded = "1"
 flate2 = "1.0"
 tar = "0.4"
 tempfile = "3"
