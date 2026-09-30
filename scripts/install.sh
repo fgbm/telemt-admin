@@ -150,14 +150,16 @@ setup_prompt_input() {
 
 prompt_read_line() {
     local __result_var="$1"
-    local prompt_text="$2"
-    local value
+    local __prompt_text="$2"
+    # Имена локальных переменных с префиксом __, чтобы не затенять переменную
+    # вызывающей функции (обычно `value`): иначе printf -v пишет в локальную копию.
+    local __line
 
-    printf '%s' "$prompt_text" >&2
-    if ! IFS= read -r -u "$PROMPT_INPUT_FD" value; then
+    printf '%s' "$__prompt_text" >&2
+    if ! IFS= read -r -u "$PROMPT_INPUT_FD" __line; then
         fail "Не удалось прочитать ввод из ${PROMPT_INPUT_SOURCE}. Установщик требует интерактивный терминал."
     fi
-    printf -v "$__result_var" '%s' "$value"
+    printf -v "$__result_var" '%s' "$__line"
 }
 
 validate_admin_ids() {
