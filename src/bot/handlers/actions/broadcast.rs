@@ -3,8 +3,8 @@
 use crate::bot::handlers::shared::HandlerResult;
 use crate::bot::handlers::state::{BotState, clear_wizard_state};
 use std::time::Duration;
-use teloxide::prelude::{Bot, ChatId, Message, Requester};
 use teloxide::payloads::SendMessageSetters;
+use teloxide::prelude::{Bot, ChatId, Message, Requester};
 use teloxide::types::ParseMode;
 use teloxide::utils::render::RenderMessageTextHelper;
 
@@ -22,7 +22,7 @@ pub async fn broadcast_to_approved_users(
             msg.chat.id,
             state.config.bot_messages.broadcast_cancelled_or_default(),
         )
-            .await?;
+        .await?;
         return Ok(());
     }
 
@@ -33,14 +33,11 @@ pub async fn broadcast_to_approved_users(
     for tg_user_id in ids {
         let send_result = if let Some(html) = msg.html_text() {
             let trimmed_html = html.trim();
-            bot
-                .send_message(ChatId(tg_user_id), trimmed_html)
+            bot.send_message(ChatId(tg_user_id), trimmed_html)
                 .parse_mode(ParseMode::Html)
                 .await
         } else {
-            bot
-                .send_message(ChatId(tg_user_id), trimmed)
-                .await
+            bot.send_message(ChatId(tg_user_id), trimmed).await
         };
 
         match send_result {

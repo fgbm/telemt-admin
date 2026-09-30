@@ -1,10 +1,12 @@
 use teloxide::prelude::*;
 use teloxide::types::{InputFile, MessageId};
 
-use crate::bot::handlers::format::{render_user_card_text, user_display_name};
-use crate::bot::handlers::shared::{HandlerResult, build_user_qr_png_bytes, callback_message_target};
-use crate::bot::handlers::state::BotState;
 use super::upsert_screen;
+use crate::bot::handlers::format::{render_user_card_text, user_display_name};
+use crate::bot::handlers::shared::{
+    HandlerResult, build_user_qr_png_bytes, callback_message_target,
+};
+use crate::bot::handlers::state::BotState;
 
 pub async fn show_delete_user_confirm(
     bot: &Bot,
@@ -98,10 +100,7 @@ pub async fn send_user_qr_to_admin(
         return Err(anyhow::anyhow!("Не найден telemt username пользователя"));
     };
 
-    let secret_opt = user
-        .secret
-        .as_deref()
-        .filter(|s| !s.is_empty());
+    let secret_opt = user.secret.as_deref().filter(|s| !s.is_empty());
     let link = state
         .telemt_backend
         .build_user_link(telemt_username, secret_opt)

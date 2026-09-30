@@ -29,13 +29,15 @@ fn parse_group_expiration_input(value: &str) -> Result<Option<i64>, anyhow::Erro
 
     if let Some(days) = trimmed.strip_prefix('+') {
         let days = days.trim_end_matches('d').trim();
-        let days = days
-            .parse::<i64>()
-            .map_err(|_| anyhow::anyhow!("Количество дней должно быть положительным целым числом"))?;
+        let days = days.parse::<i64>().map_err(|_| {
+            anyhow::anyhow!("Количество дней должно быть положительным целым числом")
+        })?;
         if days <= 0 {
             return Err(anyhow::anyhow!("Количество дней должно быть больше нуля"));
         }
-        return Ok(Some((Utc::now() + chrono::Duration::days(days)).timestamp()));
+        return Ok(Some(
+            (Utc::now() + chrono::Duration::days(days)).timestamp(),
+        ));
     }
 
     let date = NaiveDate::parse_from_str(trimmed, "%Y-%m-%d")
@@ -99,11 +101,8 @@ async fn handle_menu_buttons_inner(bot: Bot, msg: Message, state: BotState) -> H
                     .await?;
                 }
                 Err(error) => {
-                    bot.send_message(
-                        msg.chat.id,
-                        format!("Не удалось создать группу: {}", error),
-                    )
-                    .await?;
+                    bot.send_message(msg.chat.id, format!("Не удалось создать группу: {}", error))
+                        .await?;
                 }
             }
         }
@@ -137,8 +136,7 @@ async fn handle_menu_buttons_inner(bot: Bot, msg: Message, state: BotState) -> H
                 }
                 Ok(false) => {
                     clear_wizard_state(&state, user_id).await?;
-                    bot.send_message(msg.chat.id, "Группа не найдена.")
-                        .await?;
+                    bot.send_message(msg.chat.id, "Группа не найдена.").await?;
                 }
                 Err(error) => {
                     bot.send_message(
@@ -210,9 +208,15 @@ async fn handle_menu_buttons_inner(bot: Bot, msg: Message, state: BotState) -> H
             page: _,
             field,
         }) => {
-            let updated =
-                apply_user_limit_from_input(&bot, msg.chat.id, &state, tg_user_id, field, text.trim())
-                    .await?;
+            let updated = apply_user_limit_from_input(
+                &bot,
+                msg.chat.id,
+                &state,
+                tg_user_id,
+                field,
+                text.trim(),
+            )
+            .await?;
             if updated {
                 clear_wizard_state(&state, user_id).await?;
             }
@@ -241,7 +245,10 @@ async fn handle_menu_buttons_inner(bot: Bot, msg: Message, state: BotState) -> H
         None => {
             bot.send_message(
                 msg.chat.id,
-                state.config.bot_messages.fallback_unknown_request_or_default(),
+                state
+                    .config
+                    .bot_messages
+                    .fallback_unknown_request_or_default(),
             )
             .await?;
         }

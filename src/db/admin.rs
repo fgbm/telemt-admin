@@ -1,6 +1,6 @@
 use crate::db::{
-    ACTIVE_INVITE_TOKEN_PREDICATE, AdminActivity, AdminActivityKind, AdminStats, Db,
-    SyncErrorStat, SyncHealthSummary, current_unix_timestamp,
+    ACTIVE_INVITE_TOKEN_PREDICATE, AdminActivity, AdminActivityKind, AdminStats, Db, SyncErrorStat,
+    SyncHealthSummary, current_unix_timestamp,
 };
 
 impl Db {

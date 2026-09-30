@@ -147,16 +147,10 @@ impl Db {
         .await?;
         if count == 0 {
             if !ALLOWED_TABLES.contains(&table) {
-                anyhow::bail!(
-                    "ALTER TABLE: таблица '{}' не входит в белый список",
-                    table
-                );
+                anyhow::bail!("ALTER TABLE: таблица '{}' не входит в белый список", table);
             }
             if !ALLOWED_COLUMNS.contains(&column) {
-                anyhow::bail!(
-                    "ALTER TABLE: колонка '{}' не входит в белый список",
-                    column
-                );
+                anyhow::bail!("ALTER TABLE: колонка '{}' не входит в белый список", column);
             }
             sqlx::query(&format!(
                 "ALTER TABLE {} ADD COLUMN {} {}",
@@ -190,7 +184,11 @@ mod tests {
 
         assert!(request_columns.iter().any(|name| name == "backend_mode"));
         assert!(request_columns.iter().any(|name| name == "last_sync_error"));
-        assert!(request_columns.iter().any(|name| name == "last_seen_revision"));
+        assert!(
+            request_columns
+                .iter()
+                .any(|name| name == "last_seen_revision")
+        );
         assert!(request_columns.iter().any(|name| name == "last_synced_at"));
         assert!(request_columns.iter().any(|name| name == "invite_token_id"));
         assert!(invite_columns.iter().any(|name| name == "max_usage"));

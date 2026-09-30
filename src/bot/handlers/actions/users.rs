@@ -1,9 +1,9 @@
 use crate::bot::handlers::callback_data::UserLimitField;
 use crate::bot::handlers::format::user_display_name;
+use crate::bot::handlers::screens::{show_delete_user_confirm, show_user_card_screen};
 use crate::bot::handlers::shared::build_bot_start_link;
 use crate::bot::handlers::state::{BotState, telemt_username};
 use crate::bot::keyboards::user_lookup_candidates_keyboard;
-use crate::bot::handlers::screens::{show_delete_user_confirm, show_user_card_screen};
 use crate::db::{RegistrationRequest, RequestStatus};
 use crate::telemt_backend::TelemtBackendMode;
 use chrono::{Duration, NaiveDate, Utc};
@@ -165,7 +165,9 @@ pub async fn open_user_from_lookup_input(
 
     if candidates.is_empty() {
         let hint = match kind {
-            LookupInputKind::Username(u) => format!("Пользователь @{} не найден среди активных.", u),
+            LookupInputKind::Username(u) => {
+                format!("Пользователь @{} не найден среди активных.", u)
+            }
             _ => "Активный пользователь не найден.".to_string(),
         };
         bot.send_message(chat_id, hint).await?;
@@ -188,10 +190,7 @@ pub async fn open_user_from_lookup_input(
         let keyboard = user_lookup_candidates_keyboard(&pairs, page);
         bot.send_message(
             chat_id,
-            format!(
-                "Найдено {} пользователей. Выберите:",
-                candidates.len()
-            ),
+            format!("Найдено {} пользователей. Выберите:", candidates.len()),
         )
         .reply_markup(keyboard)
         .await?;
@@ -411,8 +410,11 @@ pub async fn send_token_start_link(
     };
 
     let Some(token) = state.db.get_active_invite_token_by_id(token_id).await? else {
-        bot.send_message(chat_id, state.config.bot_messages.token_not_found_or_default())
-            .await?;
+        bot.send_message(
+            chat_id,
+            state.config.bot_messages.token_not_found_or_default(),
+        )
+        .await?;
         return Ok(());
     };
 
@@ -445,7 +447,10 @@ pub async fn try_auto_import_remote_user_by_tg_id(
     }
 
     let telemt_user = telemt_username(tg_user_id);
-    let info = state.telemt_backend.get_user_info(&telemt_user, None).await?;
+    let info = state
+        .telemt_backend
+        .get_user_info(&telemt_user, None)
+        .await?;
     if info.is_none() {
         return Ok(false);
     }
@@ -489,13 +494,21 @@ pub async fn import_remote_user_by_tg_id(
             "Импорт из telemt доступен только при включённом control API (`telemt_api.enabled = true`)."
         ));
     }
-    if state.db.get_active_user_by_tg_user(tg_user_id).await?.is_some() {
+    if state
+        .db
+        .get_active_user_by_tg_user(tg_user_id)
+        .await?
+        .is_some()
+    {
         return Err(anyhow::anyhow!(
             "Активный пользователь с этим Telegram ID уже есть в локальной базе."
         ));
     }
     let telemt_user = telemt_username(tg_user_id);
-    let info = state.telemt_backend.get_user_info(&telemt_user, None).await?;
+    let info = state
+        .telemt_backend
+        .get_user_info(&telemt_user, None)
+        .await?;
     if info.is_none() {
         return Err(anyhow::anyhow!(
             "Пользователь {} не найден в telemt API.",

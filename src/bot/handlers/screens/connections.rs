@@ -1,8 +1,8 @@
 use teloxide::prelude::*;
 use teloxide::types::MessageId;
 
-use crate::bot::handlers::format::format_bytes_human;
 use super::upsert_screen;
+use crate::bot::handlers::format::format_bytes_human;
 use crate::bot::handlers::shared::HandlerResult;
 
 fn render_connections_summary_text(

@@ -40,9 +40,10 @@ pub async fn apply_group_expiry_to_members(
             "У группы не задан общий срок действия (expires_at). Задайте срок в карточке группы."
         ));
     };
-    let dt = Utc.timestamp_opt(exp_unix, 0).single().ok_or_else(|| {
-        anyhow::anyhow!("Некорректное время expires_at у группы")
-    })?;
+    let dt = Utc
+        .timestamp_opt(exp_unix, 0)
+        .single()
+        .ok_or_else(|| anyhow::anyhow!("Некорректное время expires_at у группы"))?;
     let rfc = dt.to_rfc3339();
 
     let ids = state.db.list_group_member_tg_ids(group.id).await?;
@@ -62,7 +63,11 @@ pub async fn apply_group_expiry_to_members(
             expiration_rfc3339: Some(rfc.clone()),
             ..Default::default()
         };
-        match state.telemt_backend.patch_user(telemt_username, &patch).await {
+        match state
+            .telemt_backend
+            .patch_user(telemt_username, &patch)
+            .await
+        {
             Ok(_) => ok += 1,
             Err(e) => {
                 err += 1;

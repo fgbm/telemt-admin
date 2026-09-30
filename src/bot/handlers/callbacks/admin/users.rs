@@ -1,8 +1,7 @@
 use super::super::common::{ack_callback, admin_callback_target, start_wizard_from_callback};
 use super::AdminActionResult;
 use crate::bot::handlers::actions::{
-    has_active_users, perform_hard_ban, send_user_start_link, show_user_card,
-    user_limit_input_help,
+    has_active_users, perform_hard_ban, send_user_start_link, show_user_card, user_limit_input_help,
 };
 use crate::bot::handlers::callback_data::CallbackAction;
 use crate::bot::handlers::screens::{
@@ -176,9 +175,7 @@ pub async fn handle(
             ack_callback(bot, q.id.clone(), None, false).await?;
             bot.edit_message_text(chat_id, message_id, title)
                 .reply_markup(crate::bot::keyboards::user_group_picker_keyboard(
-                    tg_user_id,
-                    page,
-                    &groups,
+                    tg_user_id, page, &groups,
                 ))
                 .await?;
             Ok(true)

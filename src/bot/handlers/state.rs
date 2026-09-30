@@ -10,20 +10,28 @@ use teloxide::types::Message;
 pub enum WizardState {
     AwaitingInviteToken,
     AdminDeleteAwaitingTarget,
-    AdminFindUserAwaitingTarget { page: i64 },
+    AdminFindUserAwaitingTarget {
+        page: i64,
+    },
     AdminSetUserLimitAwaitingValue {
         tg_user_id: i64,
         page: i64,
         field: UserLimitField,
     },
-    AdminFindTokenAwaitingCode { page: i64 },
-    AdminTokenCreateAwaitingParams { auto_approve: bool },
+    AdminFindTokenAwaitingCode {
+        page: i64,
+    },
+    AdminTokenCreateAwaitingParams {
+        auto_approve: bool,
+    },
     /// Ожидание текста рассылки всем approved-пользователям.
     AdminBroadcastAwaitingMessage,
     /// Название новой группы пользователей.
     AdminGroupAwaitingName,
     /// Новое значение общего срока действия группы.
-    AdminGroupExpiryAwaitingValue { group_id: i64 },
+    AdminGroupExpiryAwaitingValue {
+        group_id: i64,
+    },
     /// Telegram user id для импорта из telemt API.
     AdminImportAwaitingTgId,
 }

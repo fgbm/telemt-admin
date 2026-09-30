@@ -393,5 +393,4 @@ mod tests {
         let text = render_user_card_text(&req, None);
         assert!(text.contains("ID ссылки (invite): —"));
     }
-
 }

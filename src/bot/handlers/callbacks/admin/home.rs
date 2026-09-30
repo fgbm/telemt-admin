@@ -62,13 +62,7 @@ pub async fn handle(
                 return Ok(true);
             };
             set_wizard_state(state, admin_id, WizardState::AdminImportAwaitingTgId).await?;
-            ack_callback(
-                bot,
-                q.id.clone(),
-                Some("Жду Telegram user id"),
-                false,
-            )
-            .await?;
+            ack_callback(bot, q.id.clone(), Some("Жду Telegram user id"), false).await?;
             bot.send_message(
                 chat_id,
                 "Импорт пользователя из telemt по известному Telegram user id.\n\n\

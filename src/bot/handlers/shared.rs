@@ -29,10 +29,18 @@ pub enum StartPayload {
 
 fn parse_admin_start_payload(payload: &str) -> Option<StartPayload> {
     if let Some(value) = payload.strip_prefix("user:") {
-        return value.trim().parse::<i64>().ok().map(StartPayload::AdminUser);
+        return value
+            .trim()
+            .parse::<i64>()
+            .ok()
+            .map(StartPayload::AdminUser);
     }
     if let Some(value) = payload.strip_prefix("token:") {
-        return value.trim().parse::<i64>().ok().map(StartPayload::AdminToken);
+        return value
+            .trim()
+            .parse::<i64>()
+            .ok()
+            .map(StartPayload::AdminToken);
     }
     if let Some(value) = payload.strip_prefix("screen:") {
         let screen = match value.trim() {
@@ -49,10 +57,18 @@ fn parse_admin_start_payload(payload: &str) -> Option<StartPayload> {
     }
 
     if let Some(value) = payload.strip_prefix("user-") {
-        return value.trim().parse::<i64>().ok().map(StartPayload::AdminUser);
+        return value
+            .trim()
+            .parse::<i64>()
+            .ok()
+            .map(StartPayload::AdminUser);
     }
     if let Some(value) = payload.strip_prefix("token-") {
-        return value.trim().parse::<i64>().ok().map(StartPayload::AdminToken);
+        return value
+            .trim()
+            .parse::<i64>()
+            .ok()
+            .map(StartPayload::AdminToken);
     }
     if let Some(value) = payload.strip_prefix("screen-") {
         let screen = match value.trim() {

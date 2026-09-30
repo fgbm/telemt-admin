@@ -583,12 +583,25 @@ mod tests {
             .await?;
         fixture
             .db
-            .set_approved(2, Some("bob"), Some("Robert"), "telemt_bob", "secret2", None)
+            .set_approved(
+                2,
+                Some("bob"),
+                Some("Robert"),
+                "telemt_bob",
+                "secret2",
+                None,
+            )
             .await?;
 
         let by_username = fixture.db.search_active_users_by_partial("ali", 10).await?;
-        let by_display_name = fixture.db.search_active_users_by_partial("bert", 10).await?;
-        let by_telemt = fixture.db.search_active_users_by_partial("telemt_", 10).await?;
+        let by_display_name = fixture
+            .db
+            .search_active_users_by_partial("bert", 10)
+            .await?;
+        let by_telemt = fixture
+            .db
+            .search_active_users_by_partial("telemt_", 10)
+            .await?;
 
         assert_eq!(by_username.len(), 1);
         assert_eq!(by_display_name.len(), 1);

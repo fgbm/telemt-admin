@@ -20,14 +20,12 @@ impl Db {
             return Err(anyhow::anyhow!("Имя группы не может быть пустым"));
         }
         let now = current_unix_timestamp()?;
-        sqlx::query(
-            "INSERT INTO user_groups (name, created_at, expires_at) VALUES (?, ?, ?)",
-        )
-        .bind(name)
-        .bind(now)
-        .bind(expires_at)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("INSERT INTO user_groups (name, created_at, expires_at) VALUES (?, ?, ?)")
+            .bind(name)
+            .bind(now)
+            .bind(expires_at)
+            .execute(&self.pool)
+            .await?;
         let row = sqlx::query_as::<_, UserGroup>(
             "SELECT id, name, created_at, expires_at FROM user_groups WHERE name = ? LIMIT 1",
         )
@@ -69,10 +67,7 @@ impl Db {
         Ok(n)
     }
 
-    pub async fn list_group_member_tg_ids(
-        &self,
-        group_id: i64,
-    ) -> Result<Vec<i64>, anyhow::Error> {
+    pub async fn list_group_member_tg_ids(&self, group_id: i64) -> Result<Vec<i64>, anyhow::Error> {
         let rows = sqlx::query_scalar::<_, i64>(
             "SELECT tg_user_id FROM user_group_members WHERE group_id = ? ORDER BY tg_user_id ASC",
         )
@@ -160,13 +155,12 @@ mod tests {
         let g = fixture.db.create_user_group("team-a", None).await?;
         assert_eq!(g.name, "team-a");
 
-        fixture.db.set_user_group_membership(1001, Some(g.id)).await?;
-        assert_eq!(fixture.db.count_group_members(g.id).await?, 1);
-        let group = fixture
+        fixture
             .db
-            .get_group_for_tg_user(1001)
-            .await?
-            .unwrap();
+            .set_user_group_membership(1001, Some(g.id))
+            .await?;
+        assert_eq!(fixture.db.count_group_members(g.id).await?, 1);
+        let group = fixture.db.get_group_for_tg_user(1001).await?.unwrap();
         assert_eq!(group.id, g.id);
 
         fixture.db.set_user_group_membership(1001, None).await?;
@@ -178,7 +172,10 @@ mod tests {
     async fn delete_user_group_removes_members() -> Result<(), anyhow::Error> {
         let fixture = TestDb::new().await?;
         let g = fixture.db.create_user_group("tmp", None).await?;
-        fixture.db.set_user_group_membership(2002, Some(g.id)).await?;
+        fixture
+            .db
+            .set_user_group_membership(2002, Some(g.id))
+            .await?;
         assert!(fixture.db.delete_user_group(g.id).await?);
         assert!(fixture.db.get_user_group_by_id(g.id).await?.is_none());
         assert!(fixture.db.get_group_for_tg_user(2002).await?.is_none());

@@ -44,7 +44,10 @@ impl LegacyTelemtBackend {
         })
     }
 
-    pub(crate) async fn delete_user(&self, username: &str) -> Result<DeleteUserResult, anyhow::Error> {
+    pub(crate) async fn delete_user(
+        &self,
+        username: &str,
+    ) -> Result<DeleteUserResult, anyhow::Error> {
         let removed = self
             .telemt_cfg
             .clone()

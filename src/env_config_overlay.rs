@@ -408,8 +408,14 @@ mod tests {
     #[test]
     fn parse_web_secret_mode_accepts_only_known_values() {
         use crate::config::WebSecretMode;
-        assert_eq!(super::parse_web_secret_mode(" DD ").unwrap(), WebSecretMode::Dd);
-        assert_eq!(super::parse_web_secret_mode("plain").unwrap(), WebSecretMode::Plain);
+        assert_eq!(
+            super::parse_web_secret_mode(" DD ").unwrap(),
+            WebSecretMode::Dd
+        );
+        assert_eq!(
+            super::parse_web_secret_mode("plain").unwrap(),
+            WebSecretMode::Plain
+        );
         assert!(super::parse_web_secret_mode("ee").is_err());
         assert!(super::parse_web_secret_mode("").is_err());
     }
@@ -432,8 +438,14 @@ mod tests {
 
     #[test]
     fn parse_runtime_mode_accepts_known_variants() {
-        assert_eq!(parse_runtime_mode("systemd").ok(), Some(RuntimeMode::Systemd));
-        assert_eq!(parse_runtime_mode("external").ok(), Some(RuntimeMode::External));
+        assert_eq!(
+            parse_runtime_mode("systemd").ok(),
+            Some(RuntimeMode::Systemd)
+        );
+        assert_eq!(
+            parse_runtime_mode("external").ok(),
+            Some(RuntimeMode::External)
+        );
         assert_eq!(parse_runtime_mode("none").ok(), Some(RuntimeMode::None));
         assert!(parse_runtime_mode("docker").is_err());
     }

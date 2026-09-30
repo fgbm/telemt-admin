@@ -3,8 +3,8 @@
 mod bot;
 mod cli;
 mod config;
-mod env_config_overlay;
 mod db;
+mod env_config_overlay;
 mod link;
 mod monitor;
 mod runtime;

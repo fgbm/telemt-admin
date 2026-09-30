@@ -95,23 +95,39 @@ mod tests {
 
     #[test]
     fn extract_user_secret_normalizes_case() {
-        let link = "tg://proxy?server=p.example&port=443&secret=EE0123456789ABCDEF0123456789ABCDEF00";
+        let link =
+            "tg://proxy?server=p.example&port=443&secret=EE0123456789ABCDEF0123456789ABCDEF00";
 
         assert_eq!(extract_user_secret(link).as_deref(), Some(SECRET));
     }
 
     #[test]
     fn extract_user_secret_rejects_malformed_links() {
-        assert_eq!(extract_user_secret("tg://proxy?server=p.example&port=443"), None);
+        assert_eq!(
+            extract_user_secret("tg://proxy?server=p.example&port=443"),
+            None
+        );
         assert_eq!(extract_user_secret("tg://proxy?secret=ee0123"), None);
         assert_eq!(
             extract_user_secret("tg://proxy?secret=eezz23456789abcdef0123456789abcdef00"),
             None
         );
-        assert_eq!(extract_user_secret(&format!("tg://proxy?secret=ab{SECRET}")), None);
-        assert_eq!(extract_user_secret(&format!("tg://proxy?secret=dd{SECRET}00")), None);
-        assert_eq!(extract_user_secret(&format!("tg://proxy?secret=ee{SECRET}zz")), None);
-        assert_eq!(extract_user_secret(&format!("tg://proxy?secret=ee{SECRET}")), None);
+        assert_eq!(
+            extract_user_secret(&format!("tg://proxy?secret=ab{SECRET}")),
+            None
+        );
+        assert_eq!(
+            extract_user_secret(&format!("tg://proxy?secret=dd{SECRET}00")),
+            None
+        );
+        assert_eq!(
+            extract_user_secret(&format!("tg://proxy?secret=ee{SECRET}zz")),
+            None
+        );
+        assert_eq!(
+            extract_user_secret(&format!("tg://proxy?secret=ee{SECRET}")),
+            None
+        );
     }
 
     #[test]

@@ -154,7 +154,8 @@ fn plan_snapshot_notifications(
                 text: "✅ telemt снова принимает новые соединения".to_string(),
             });
         }
-        if monitor_state.me_runtime_ready == Some(true) && snapshot.me_runtime_ready == Some(false) {
+        if monitor_state.me_runtime_ready == Some(true) && snapshot.me_runtime_ready == Some(false)
+        {
             notifications.push(MonitorNotification {
                 text: "🚨 ME runtime больше не готов".to_string(),
             });

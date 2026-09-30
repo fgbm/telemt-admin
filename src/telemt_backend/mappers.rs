@@ -133,7 +133,10 @@ mod tests {
             secure: Vec::new(),
             tls: Vec::new(),
         };
-        assert_eq!(pick_best_link(&classic_fallback).as_deref(), Some("classic"));
+        assert_eq!(
+            pick_best_link(&classic_fallback).as_deref(),
+            Some("classic")
+        );
         assert_eq!(
             pick_best_link(&UserLinks {
                 classic: Vec::new(),

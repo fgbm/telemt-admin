@@ -1,8 +1,8 @@
 use super::super::common::{ack_callback, admin_callback_target};
 use super::AdminActionResult;
 use crate::bot::handlers::actions::{
-    admin_show_connections_summary, admin_show_service_panel,
-    admin_show_service_panel_with_notice, execute_service_action,
+    admin_show_connections_summary, admin_show_service_panel, admin_show_service_panel_with_notice,
+    execute_service_action,
 };
 use crate::bot::handlers::callback_data::CallbackAction;
 use crate::bot::handlers::screens::show_service_action_confirm;

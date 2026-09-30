@@ -84,8 +84,11 @@ pub async fn handle_token_create_from_text(
                 let parsed = match value.parse::<i64>() {
                     Ok(parsed) if parsed >= 1 => parsed,
                     _ => {
-                        bot.send_message(chat_id, "Лимит активаций токена должен быть не меньше 1.")
-                            .await?;
+                        bot.send_message(
+                            chat_id,
+                            "Лимит активаций токена должен быть не меньше 1.",
+                        )
+                        .await?;
                         return Ok(false);
                     }
                 };
@@ -126,7 +129,7 @@ pub async fn handle_token_create_from_text(
                 chat_id,
                 "Срок действия invite-токена (дни) можно указать только один раз.",
             )
-                .await?;
+            .await?;
             return Ok(false);
         }
         days = Some(parsed_days);
@@ -149,7 +152,7 @@ pub async fn handle_token_create_from_text(
             chat_id,
             "Срок действия invite-токена (дней) должен быть не меньше 1.",
         )
-            .await?;
+        .await?;
         return Ok(false);
     }
     if let Some(max_uses) = max_uses

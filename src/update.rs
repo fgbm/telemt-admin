@@ -226,12 +226,7 @@ pub async fn run_self_update() -> Result<()> {
     .await
     .context("Blocking SHA-256 verification task failed")??;
 
-    install_downloaded_release(
-        exe_dir.to_path_buf(),
-        current_exe.clone(),
-        verified_bytes,
-    )
-    .await?;
+    install_downloaded_release(exe_dir.to_path_buf(), current_exe.clone(), verified_bytes).await?;
 
     println!(
         "Обновление до версии {} завершено. Перезапустите сервис: systemctl restart telemt-admin.service",

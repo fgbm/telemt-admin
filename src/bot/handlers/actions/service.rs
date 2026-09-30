@@ -49,14 +49,14 @@ async fn load_service_panel_data(
                 (None, Some(error.to_string()))
             }
         };
-    let (runtime_snapshot, runtime_snapshot_error) = match state.telemt_backend.runtime_snapshot(6).await
-    {
-        Ok(value) => (value, None),
-        Err(error) => {
-            tracing::warn!(error = %error, "Не удалось получить runtime snapshot telemt");
-            (None, Some(error.to_string()))
-        }
-    };
+    let (runtime_snapshot, runtime_snapshot_error) =
+        match state.telemt_backend.runtime_snapshot(6).await {
+            Ok(value) => (value, None),
+            Err(error) => {
+                tracing::warn!(error = %error, "Не удалось получить runtime snapshot telemt");
+                (None, Some(error.to_string()))
+            }
+        };
 
     Ok(ServicePanelData {
         notice: notice.map(str::to_string),

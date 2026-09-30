@@ -1,10 +1,10 @@
 use teloxide::prelude::*;
 use teloxide::types::MessageId;
 
+use super::{admin_activity_summary, service_status_label, upsert_screen};
 use crate::bot::handlers::format::{format_bytes_human, format_timestamp};
-use crate::bot::handlers::state::BotState;
-use super::{service_status_label, admin_activity_summary, upsert_screen};
 use crate::bot::handlers::shared::HandlerResult;
+use crate::bot::handlers::state::BotState;
 
 pub async fn admin_show_stats(
     bot: &Bot,
@@ -17,7 +17,12 @@ pub async fn admin_show_stats(
     let summary = state.telemt_runtime.summary().await;
     let admin_events = state.db.list_recent_admin_activities(4).await?;
     let telemt_stats = state.telemt_backend.stats_summary().await.ok().flatten();
-    let connections_summary = state.telemt_backend.connections_summary(3).await.ok().flatten();
+    let connections_summary = state
+        .telemt_backend
+        .connections_summary(3)
+        .await
+        .ok()
+        .flatten();
     let status_label = if caps.shows_systemd_unit {
         service_status_label(&summary.active_state, &summary.sub_state)
     } else {
@@ -60,7 +65,10 @@ pub async fn admin_show_stats(
         lines.push(format!("Код процесса: {}", exec_status));
     }
     if let Some(error) = &summary.error {
-        lines.push(format!("Ошибка статуса: {}", super::compact_line(error, 90)));
+        lines.push(format!(
+            "Ошибка статуса: {}",
+            super::compact_line(error, 90)
+        ));
     }
 
     lines.push(String::new());
@@ -128,7 +136,10 @@ pub async fn admin_show_stats(
         if !live.top_by_connections.is_empty() {
             for user in &live.top_by_connections {
                 if user.current_connections >= 10 {
-                    alerts.push(format!("TCP spike: {} ({})", user.username, user.current_connections));
+                    alerts.push(format!(
+                        "TCP spike: {} ({})",
+                        user.username, user.current_connections
+                    ));
                 }
             }
         }

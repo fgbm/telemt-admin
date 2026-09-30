@@ -43,7 +43,9 @@ impl TelemtRuntime {
     /// Создание из эффективных параметров после загрузки конфига.
     pub fn new(mode: RuntimeMode, systemd_unit: String, external_label: Option<String>) -> Self {
         let inner = match mode {
-            RuntimeMode::Systemd => TelemtRuntimeInner::Systemd(ServiceController::new(systemd_unit)),
+            RuntimeMode::Systemd => {
+                TelemtRuntimeInner::Systemd(ServiceController::new(systemd_unit))
+            }
             RuntimeMode::External => TelemtRuntimeInner::External {
                 label: external_label
                     .filter(|s| !s.trim().is_empty())
@@ -64,16 +66,14 @@ impl TelemtRuntime {
                 can_restart: true,
                 can_reload_config: true,
             },
-            TelemtRuntimeInner::External { .. } | TelemtRuntimeInner::None => {
-                RuntimeCapabilities {
-                    shows_systemd_unit: false,
-                    shows_journal_tail: false,
-                    can_start: false,
-                    can_stop: false,
-                    can_restart: false,
-                    can_reload_config: false,
-                }
-            }
+            TelemtRuntimeInner::External { .. } | TelemtRuntimeInner::None => RuntimeCapabilities {
+                shows_systemd_unit: false,
+                shows_journal_tail: false,
+                can_start: false,
+                can_stop: false,
+                can_restart: false,
+                can_reload_config: false,
+            },
         }
     }
 
@@ -167,7 +167,9 @@ impl TelemtRuntime {
             TelemtRuntimeInner::Systemd(s) => s.recent_events(limit).await,
             TelemtRuntimeInner::External { .. } => ServiceEvents {
                 success: true,
-                lines: vec!["Журнал systemd недоступен: процесс telemt управляется внешне.".to_string()],
+                lines: vec![
+                    "Журнал systemd недоступен: процесс telemt управляется внешне.".to_string(),
+                ],
                 error: None,
             },
             TelemtRuntimeInner::None => ServiceEvents {

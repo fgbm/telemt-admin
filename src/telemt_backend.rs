@@ -25,9 +25,8 @@ use legacy::LegacyTelemtBackend;
 #[allow(unused_imports)]
 pub use types::{
     DeleteUserResult, ProvisionedUser, TelemtApiError, TelemtBackendMode, TelemtConnectionTopUser,
-    TelemtConnectionsSummary, TelemtMonitorSnapshot, TelemtRuntimeEvent,
-    TelemtRuntimeSnapshot, TelemtStatsSummary, TelemtUserActivity, TelemtUserInfo,
-    TelemtUserPatch,
+    TelemtConnectionsSummary, TelemtMonitorSnapshot, TelemtRuntimeEvent, TelemtRuntimeSnapshot,
+    TelemtStatsSummary, TelemtUserActivity, TelemtUserInfo, TelemtUserPatch,
 };
 
 #[derive(Clone)]
@@ -47,11 +46,7 @@ impl TelemtBackend {
         telemt_runtime: TelemtRuntime,
     ) -> Result<Self, anyhow::Error> {
         let inner = if api_cfg.enabled {
-            TelemtBackendInner::Api(ApiTelemtBackend::new(
-                api_cfg,
-                telemt_cfg,
-                telemt_runtime,
-            )?)
+            TelemtBackendInner::Api(ApiTelemtBackend::new(api_cfg, telemt_cfg, telemt_runtime)?)
         } else {
             TelemtBackendInner::Legacy(LegacyTelemtBackend::new(telemt_cfg, telemt_runtime))
         };

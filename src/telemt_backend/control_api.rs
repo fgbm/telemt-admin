@@ -255,8 +255,8 @@ impl ApiTelemtBackend {
         match response {
             Ok(response) => {
                 if let Some(data) = response.data.data {
-                    let has_top_data = !data.top.by_connections.is_empty()
-                        || !data.top.by_throughput.is_empty();
+                    let has_top_data =
+                        !data.top.by_connections.is_empty() || !data.top.by_throughput.is_empty();
                     if has_top_data {
                         return Ok(Some(TelemtConnectionsSummary {
                             current_connections: data.totals.current_connections,
@@ -422,20 +422,16 @@ impl ApiTelemtBackend {
             .ok();
         let (gates, me_selftest, upstream) = self.fetch_runtime_aux().await;
 
-        let (
-            accepting_new_connections,
-            me_runtime_ready,
-            use_middle_proxy,
-            route_mode,
-        ) = match &gates {
-            Some(g) => (
-                Some(g.accepting_new_connections),
-                Some(g.me_runtime_ready),
-                Some(g.use_middle_proxy),
-                Some(g.route_mode.clone()),
-            ),
-            None => (None, None, None, None),
-        };
+        let (accepting_new_connections, me_runtime_ready, use_middle_proxy, route_mode) =
+            match &gates {
+                Some(g) => (
+                    Some(g.accepting_new_connections),
+                    Some(g.me_runtime_ready),
+                    Some(g.use_middle_proxy),
+                    Some(g.route_mode.clone()),
+                ),
+                None => (None, None, None, None),
+            };
 
         let (me_selftest_enabled, me_selftest_kdf_state, me_selftest_timeskew_state) =
             match &me_selftest {

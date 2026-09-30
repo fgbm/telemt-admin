@@ -136,12 +136,13 @@ impl TelemtApiClient {
             .await
             .context("Не удалось прочитать ответ telemt API")?;
         if status.is_success() {
-            let envelope: SuccessEnvelope<T> = serde_json::from_slice(&body).with_context(|| {
-                format!(
-                    "Не удалось декодировать успешный ответ: {}",
-                    String::from_utf8_lossy(&body)
-                )
-            })?;
+            let envelope: SuccessEnvelope<T> =
+                serde_json::from_slice(&body).with_context(|| {
+                    format!(
+                        "Не удалось декодировать успешный ответ: {}",
+                        String::from_utf8_lossy(&body)
+                    )
+                })?;
             *self.revision.lock().await = Some(envelope.revision.clone());
             return Ok(envelope);
         }

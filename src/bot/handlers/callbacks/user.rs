@@ -70,7 +70,10 @@ pub async fn handle_user_action(
             if let Some((chat_id, _)) = callback_message_target(q) {
                 bot.send_message(
                     chat_id,
-                    state.config.bot_messages.invite_followup_prompt_or_default(),
+                    state
+                        .config
+                        .bot_messages
+                        .invite_followup_prompt_or_default(),
                 )
                 .await?;
             }

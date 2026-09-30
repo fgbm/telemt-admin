@@ -2,8 +2,8 @@ use teloxide::prelude::*;
 use teloxide::types::MessageId;
 
 use crate::bot::handlers::format::{format_timestamp, user_display_name};
-use crate::bot::handlers::state::BotState;
 use crate::bot::handlers::shared::HandlerResult;
+use crate::bot::handlers::state::BotState;
 
 pub async fn admin_show_pending_requests_page(
     bot: &Bot,

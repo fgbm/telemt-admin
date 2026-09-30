@@ -98,7 +98,13 @@ impl TelemtConfig {
         let path = self.path.display().to_string();
         tokio::task::spawn_blocking(move || self.read_link_params())
             .await
-            .map_err(|error| anyhow::anyhow!("Blocking read_link_params task failed for {}: {}", path, error))?
+            .map_err(|error| {
+                anyhow::anyhow!(
+                    "Blocking read_link_params task failed for {}: {}",
+                    path,
+                    error
+                )
+            })?
     }
 
     /// Добавляет или обновляет пользователя в [access.users].
@@ -150,7 +156,9 @@ impl TelemtConfig {
         let path = self.path.display().to_string();
         tokio::task::spawn_blocking(move || self.upsert_user(&username, &secret))
             .await
-            .map_err(|error| anyhow::anyhow!("Blocking upsert_user task failed for {}: {}", path, error))?
+            .map_err(|error| {
+                anyhow::anyhow!("Blocking upsert_user task failed for {}: {}", path, error)
+            })?
     }
 
     /// Удаляет пользователя из [access.users].
@@ -197,11 +205,16 @@ impl TelemtConfig {
         Ok(existed)
     }
 
-    pub async fn remove_user_offloaded(self: Arc<Self>, username: String) -> Result<bool, anyhow::Error> {
+    pub async fn remove_user_offloaded(
+        self: Arc<Self>,
+        username: String,
+    ) -> Result<bool, anyhow::Error> {
         let path = self.path.display().to_string();
         tokio::task::spawn_blocking(move || self.remove_user(&username))
             .await
-            .map_err(|error| anyhow::anyhow!("Blocking remove_user task failed for {}: {}", path, error))?
+            .map_err(|error| {
+                anyhow::anyhow!("Blocking remove_user task failed for {}: {}", path, error)
+            })?
     }
 
     fn write_atomic(&self, content: &str) -> Result<(), anyhow::Error> {

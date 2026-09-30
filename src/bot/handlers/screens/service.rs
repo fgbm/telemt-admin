@@ -1,10 +1,10 @@
-﻿use teloxide::prelude::*;
+use teloxide::prelude::*;
 use teloxide::types::MessageId;
 
-use crate::bot::handlers::callback_data::ServiceAction;
-use crate::bot::handlers::format::format_timestamp;
 use super::compact_line;
 use super::upsert_screen;
+use crate::bot::handlers::callback_data::ServiceAction;
+use crate::bot::handlers::format::format_timestamp;
 use crate::bot::handlers::shared::HandlerResult;
 use crate::bot::handlers::state::BotState;
 use crate::db::{AdminActivity, AdminStats, SyncHealthSummary};
@@ -55,11 +55,7 @@ fn render_service_panel_text(data: &ServicePanelData) -> String {
 
     lines.push(String::new());
     if data.caps.shows_systemd_unit {
-        lines.push(format!(
-            "Юнит {}: {}",
-            data.runtime_label,
-            status_label
-        ));
+        lines.push(format!("Юнит {}: {}", data.runtime_label, status_label));
         lines.push(format!(
             "Проверка systemd: {}",
             if data.summary.success {
@@ -69,11 +65,7 @@ fn render_service_panel_text(data: &ServicePanelData) -> String {
             }
         ));
     } else {
-        lines.push(format!(
-            "Telemt ({}): {}",
-            data.runtime_label,
-            status_label
-        ));
+        lines.push(format!("Telemt ({}): {}", data.runtime_label, status_label));
         lines.push(format!(
             "Статус host-runtime: {}",
             if data.summary.success {
@@ -131,12 +123,13 @@ fn render_service_panel_text(data: &ServicePanelData) -> String {
         lines.push(format!("Профиль: {}", snapshot.source.as_str()));
         lines.push(format!(
             "Версия: {} | Health: {} | read-only: {}",
-            snapshot
-                .build_version
-                .as_deref()
-                .unwrap_or("—"),
+            snapshot.build_version.as_deref().unwrap_or("—"),
             snapshot.health_status,
-            if snapshot.api_read_only { "да" } else { "нет" }
+            if snapshot.api_read_only {
+                "да"
+            } else {
+                "нет"
+            }
         ));
         if let Some(mode) = &snapshot.transport_mode {
             lines.push(format!("Транспорт: {}", mode));
@@ -167,10 +160,7 @@ fn render_service_panel_text(data: &ServicePanelData) -> String {
         }
         match snapshot.me_selftest_enabled {
             Some(true) => {
-                let kdf = snapshot
-                    .me_selftest_kdf_state
-                    .as_deref()
-                    .unwrap_or("—");
+                let kdf = snapshot.me_selftest_kdf_state.as_deref().unwrap_or("—");
                 let skew = snapshot
                     .me_selftest_timeskew_state
                     .as_deref()
@@ -199,11 +189,7 @@ fn render_service_panel_text(data: &ServicePanelData) -> String {
                 .unwrap_or_else(|| "—".to_string());
             lines.push(format!(
                 "API whitelist: {} ({})",
-                if enabled {
-                    "вкл"
-                } else {
-                    "выкл"
-                },
+                if enabled { "вкл" } else { "выкл" },
                 entries
             ));
         }
@@ -352,7 +338,10 @@ pub async fn show_service_action_confirm(
     bot.edit_message_text(
         chat_id,
         message_id,
-        state.config.bot_messages.service_action_confirm_text(service_action_title(action)),
+        state
+            .config
+            .bot_messages
+            .service_action_confirm_text(service_action_title(action)),
     )
     .reply_markup(crate::bot::keyboards::confirm_service_action_keyboard(
         action,

@@ -1,6 +1,8 @@
 use super::super::common::{ack_callback, admin_callback_target};
 use super::AdminActionResult;
-use crate::bot::handlers::actions::groups::{apply_group_expiry_to_members, deactivate_all_members};
+use crate::bot::handlers::actions::groups::{
+    apply_group_expiry_to_members, deactivate_all_members,
+};
 use crate::bot::handlers::callback_data::CallbackAction;
 use crate::bot::handlers::screens::{admin_show_group_card, admin_show_groups_menu};
 use crate::bot::handlers::state::{BotState, WizardState, set_wizard_state};
@@ -39,13 +41,7 @@ pub async fn handle(
                 return Ok(true);
             };
             set_wizard_state(state, admin_id, WizardState::AdminGroupAwaitingName).await?;
-            ack_callback(
-                bot,
-                q.id.clone(),
-                Some("Жду имя группы"),
-                false,
-            )
-            .await?;
+            ack_callback(bot, q.id.clone(), Some("Жду имя группы"), false).await?;
             bot.send_message(
                 chat_id,
                 "Введите имя новой группы одним сообщением.\n\nОтмена: отправьте пустое сообщение или вернитесь в админку.",
@@ -61,8 +57,12 @@ pub async fn handle(
                 ack_callback(bot, q.id.clone(), Some("Группа не найдена"), true).await?;
                 return Ok(true);
             };
-            set_wizard_state(state, admin_id, WizardState::AdminGroupExpiryAwaitingValue { group_id })
-                .await?;
+            set_wizard_state(
+                state,
+                admin_id,
+                WizardState::AdminGroupExpiryAwaitingValue { group_id },
+            )
+            .await?;
             ack_callback(bot, q.id.clone(), Some("Жду срок группы"), false).await?;
             let current = group
                 .expires_at
@@ -108,9 +108,7 @@ pub async fn handle(
             let groups = state.db.list_user_groups().await?;
             let text = format!(
                 "Отключено пользователей: {}, ошибок: {}. Группа «{}» удалена.",
-                ok,
-                err,
-                group.name
+                ok, err, group.name
             );
             bot.edit_message_text(chat_id, message_id, text)
                 .reply_markup(crate::bot::keyboards::groups_menu_keyboard(&groups))
@@ -122,13 +120,7 @@ pub async fn handle(
                 return Ok(true);
             };
             if !state.config.telemt_api.enabled {
-                ack_callback(
-                    bot,
-                    q.id.clone(),
-                    Some("Нужен telemt control API"),
-                    true,
-                )
-                .await?;
+                ack_callback(bot, q.id.clone(), Some("Нужен telemt control API"), true).await?;
                 return Ok(true);
             }
             let Some(group) = state.db.get_user_group_by_id(group_id).await? else {

@@ -1,6 +1,6 @@
 use super::actions::{
-    admin_show_connections_summary, admin_show_service_panel, process_invite_token,
-    send_user_link, show_user_card, try_auto_import_remote_user_by_tg_id,
+    admin_show_connections_summary, admin_show_service_panel, process_invite_token, send_user_link,
+    show_user_card, try_auto_import_remote_user_by_tg_id,
 };
 use super::callback_data::CallbackAction;
 use super::screens::{
@@ -113,8 +113,11 @@ async fn handle_command_message_inner(bot: Bot, msg: Message, state: BotState) -
         "service" => cmd_service(bot, msg, state).await,
         "token" => cmd_token(bot, msg, state).await,
         _ => {
-            bot.send_message(msg.chat.id, state.config.bot_messages.unknown_command_or_default())
-                .await?;
+            bot.send_message(
+                msg.chat.id,
+                state.config.bot_messages.unknown_command_or_default(),
+            )
+            .await?;
             Ok(())
         }
     }
@@ -180,8 +183,11 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                 if let Some(user) = state.db.get_active_user_by_tg_user(target_user_id).await? {
                     show_user_card(&bot, msg.chat.id, None, &user, 1, &state).await?;
                 } else {
-                    bot.send_message(msg.chat.id, state.config.bot_messages.user_not_found_or_default())
-                        .await?;
+                    bot.send_message(
+                        msg.chat.id,
+                        state.config.bot_messages.user_not_found_or_default(),
+                    )
+                    .await?;
                 }
                 return Ok(());
             }
@@ -198,8 +204,11 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                 if let Some(token) = state.db.get_active_invite_token_by_id(token_id).await? {
                     show_token_card(&bot, msg.chat.id, None, &token, 1).await?;
                 } else {
-                    bot.send_message(msg.chat.id, state.config.bot_messages.token_not_found_or_default())
-                        .await?;
+                    bot.send_message(
+                        msg.chat.id,
+                        state.config.bot_messages.token_not_found_or_default(),
+                    )
+                    .await?;
                 }
                 return Ok(());
             }
@@ -214,11 +223,15 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                 }
                 clear_wizard_state(&state, user_id).await?;
                 match screen {
-                    AdminStartScreen::Home => show_admin_home(&bot, msg.chat.id, None, &state).await?,
+                    AdminStartScreen::Home => {
+                        show_admin_home(&bot, msg.chat.id, None, &state).await?
+                    }
                     AdminStartScreen::Users => {
                         admin_show_users_page(&bot, msg.chat.id, &state, 1, None).await?
                     }
-                    AdminStartScreen::Tokens => show_token_menu(&bot, msg.chat.id, None, &state).await?,
+                    AdminStartScreen::Tokens => {
+                        show_token_menu(&bot, msg.chat.id, None, &state).await?
+                    }
                     AdminStartScreen::Service => {
                         admin_show_service_panel(&bot, msg.chat.id, &state, None).await?
                     }
@@ -226,8 +239,7 @@ async fn start_cmd(bot: Bot, msg: Message, state: BotState) -> HandlerResult {
                         admin_show_stats(&bot, msg.chat.id, &state, None).await?
                     }
                     AdminStartScreen::Pending => {
-                        admin_show_pending_requests_page(&bot, msg.chat.id, &state, 1, None)
-                            .await?
+                        admin_show_pending_requests_page(&bot, msg.chat.id, &state, 1, None).await?
                     }
                     AdminStartScreen::Connections => {
                         admin_show_connections_summary(&bot, msg.chat.id, &state, None).await?

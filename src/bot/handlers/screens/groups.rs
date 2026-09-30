@@ -1,10 +1,10 @@
 use teloxide::prelude::*;
 use teloxide::types::MessageId;
 
-use crate::bot::handlers::format::format_timestamp;
-use crate::bot::handlers::state::BotState;
 use super::upsert_screen;
+use crate::bot::handlers::format::format_timestamp;
 use crate::bot::handlers::shared::HandlerResult;
+use crate::bot::handlers::state::BotState;
 
 pub async fn admin_show_groups_menu(
     bot: &Bot,
@@ -51,11 +51,7 @@ pub async fn admin_show_group_card(
          «Снять срок» очистит общий срок группы.\n\
          «Отключить всех» удалит пользователей из telemt и локальной БД, затем удалит группу.\n\
          «Применить срок» выставит всем участникам `expiration` из RFC3339, вычисленного из unix-срока группы.",
-        group.name,
-        group.id,
-        created_line,
-        n,
-        exp_line
+        group.name, group.id, created_line, n, exp_line
     );
     upsert_screen(
         bot,

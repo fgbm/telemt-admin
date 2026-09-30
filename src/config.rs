@@ -144,16 +144,14 @@ impl WebProxyConfig {
         let valid = !host.is_empty()
             && host.len() <= 253
             && host.contains('.')
-            && host
-                .split('.')
-                .all(|label| {
-                    !label.is_empty()
-                        && !label.starts_with('-')
-                        && !label.ends_with('-')
-                        && label
-                            .chars()
-                            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-')
-                });
+            && host.split('.').all(|label| {
+                !label.is_empty()
+                    && !label.starts_with('-')
+                    && !label.ends_with('-')
+                    && label
+                        .chars()
+                        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-')
+            });
         valid.then_some(host)
     }
 }
@@ -310,8 +308,7 @@ impl BotMessages {
     }
 
     pub fn invite_followup_prompt_or_default(&self) -> &str {
-        const DEFAULT: &str =
-            "Отправьте invite-токен следующим сообщением.\n\nСообщение с кнопками можно оставить открытым.";
+        const DEFAULT: &str = "Отправьте invite-токен следующим сообщением.\n\nСообщение с кнопками можно оставить открытым.";
         Self::non_empty(self.invite_followup_prompt.as_deref()).unwrap_or(DEFAULT)
     }
 
@@ -373,8 +370,7 @@ impl BotMessages {
     }
 
     pub fn broadcast_summary_text(&self, ok: u64, failed: u64, total: u64) -> String {
-        const DEFAULT: &str =
-            "Рассылка завершена.\nУспешно: {ok}\nОшибок: {failed}\nВсего получателей в списке: {total}";
+        const DEFAULT: &str = "Рассылка завершена.\nУспешно: {ok}\nОшибок: {failed}\nВсего получателей в списке: {total}";
         Self::render_template(
             self.broadcast_summary_template.as_deref(),
             DEFAULT,
@@ -403,7 +399,11 @@ impl BotMessages {
 
     pub fn user_home_approved_text(&self, link: &str) -> String {
         const DEFAULT: &str = "Доступ уже открыт.\n\nНажмите «Получить ссылку».";
-        Self::render_template(self.user_home_approved.as_deref(), DEFAULT, &[("link", link.to_string())])
+        Self::render_template(
+            self.user_home_approved.as_deref(),
+            DEFAULT,
+            &[("link", link.to_string())],
+        )
     }
 
     pub fn user_home_pending_or_default(&self) -> &str {
@@ -476,8 +476,13 @@ impl BotMessages {
     }
 
     pub fn service_action_confirm_text(&self, action: &str) -> String {
-        const DEFAULT: &str = "Подтвердить действие: {action}?\n\nЭто может временно прервать доступ пользователей.";
-        Self::render_template(self.service_action_confirm_template.as_deref(), DEFAULT, &[("action", action.to_string())])
+        const DEFAULT: &str =
+            "Подтвердить действие: {action}?\n\nЭто может временно прервать доступ пользователей.";
+        Self::render_template(
+            self.service_action_confirm_template.as_deref(),
+            DEFAULT,
+            &[("action", action.to_string())],
+        )
     }
 
     pub fn token_error_not_found_or_default(&self) -> &str {
@@ -502,22 +507,35 @@ impl BotMessages {
 
     pub fn admin_notify_new_request_text(&self, req: &crate::db::RegistrationRequest) -> String {
         const DEFAULT: &str = "📋 Новая заявка #{id}:\n User ID: {user_id}\n Username: @{username}\n Имя: {display_name}\n Время: {time}{invite_token_id}";
-        let invite_line = req.invite_token_id.map(|id| format!("\n🎟 ID ссылки (invite): {}", id)).unwrap_or_default();
+        let invite_line = req
+            .invite_token_id
+            .map(|id| format!("\n🎟 ID ссылки (invite): {}", id))
+            .unwrap_or_default();
         Self::render_template(
             self.admin_notify_new_request_template.as_deref(),
             DEFAULT,
             &[
                 ("id", req.id.to_string()),
                 ("user_id", req.tg_user_id.to_string()),
-                ("username", req.tg_username.as_deref().unwrap_or("—").to_string()),
-                ("display_name", req.tg_display_name.as_deref().unwrap_or("—").to_string()),
-                ("time", crate::bot::handlers::format::format_timestamp(req.created_at)),
+                (
+                    "username",
+                    req.tg_username.as_deref().unwrap_or("—").to_string(),
+                ),
+                (
+                    "display_name",
+                    req.tg_display_name.as_deref().unwrap_or("—").to_string(),
+                ),
+                (
+                    "time",
+                    crate::bot::handlers::format::format_timestamp(req.created_at),
+                ),
                 ("invite_token_id", invite_line),
             ],
         )
     }
 
-    pub fn admin_notify_auto_approve_text(&self,
+    pub fn admin_notify_auto_approve_text(
+        &self,
         tg_user_id: i64,
         tg_username: Option<&str>,
         tg_display_name: Option<&str>,
@@ -538,10 +556,25 @@ impl BotMessages {
                 ("token", token.token.clone()),
                 ("token_id", token.id.to_string()),
                 ("mode", mode_label.to_string()),
-                ("expires_at", crate::bot::handlers::format::format_timestamp(token.expires_at)),
+                (
+                    "expires_at",
+                    crate::bot::handlers::format::format_timestamp(token.expires_at),
+                ),
                 ("usage_count", token.usage_count.to_string()),
-                ("max_usage", token.max_usage.map(|v| v.to_string()).unwrap_or_else(|| "∞".to_string())),
-                ("created_by", token.created_by.map(|v| v.to_string()).unwrap_or_else(|| "—".to_string())),
+                (
+                    "max_usage",
+                    token
+                        .max_usage
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "∞".to_string()),
+                ),
+                (
+                    "created_by",
+                    token
+                        .created_by
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "—".to_string()),
+                ),
             ],
         )
     }
@@ -893,8 +926,8 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::{
-        default_runtime_mode, BotMessages, Config, NotificationsConfig, RuntimeSection,
-        SecurityConfig, TelemtApiConfig, WebAppConfig, WebProxyConfig, WebSecretMode,
+        BotMessages, Config, NotificationsConfig, RuntimeSection, SecurityConfig, TelemtApiConfig,
+        WebAppConfig, WebProxyConfig, WebSecretMode, default_runtime_mode,
     };
     use crate::runtime::RuntimeMode;
     use std::path::PathBuf;
@@ -949,7 +982,11 @@ mod tests {
         assert!(text.ends_with(
             "WEB-прокси (Telegram Desktop 7.1+, тип WEB):\n\ntg://webproxy?server=lk.example.com&secret=0123456789abcdef0123456789abcdef"
         ));
-        assert!(config.access_approved_message(PROXY_LINK).starts_with("Доступ одобрен!"));
+        assert!(
+            config
+                .access_approved_message(PROXY_LINK)
+                .starts_with("Доступ одобрен!")
+        );
     }
 
     #[test]
@@ -963,7 +1000,10 @@ mod tests {
         assert_eq!(webapp.https_public_url(), None);
 
         webapp.public_url = Some(" https://app.example.com/ ".to_string());
-        assert_eq!(webapp.https_public_url().as_deref(), Some("https://app.example.com/"));
+        assert_eq!(
+            webapp.https_public_url().as_deref(),
+            Some("https://app.example.com/")
+        );
     }
 
     const PROXY_LINK: &str = "tg://proxy?server=proxy.example.com&port=443&secret=ee0123456789abcdef0123456789abcdef6578616d706c652e636f6d";
@@ -996,7 +1036,12 @@ mod tests {
     #[test]
     fn web_proxy_link_ignores_invalid_host() {
         let mut config = sample_config();
-        for host in ["", "lk.example.com/path", "https://lk.example.com", "lk example.com"] {
+        for host in [
+            "",
+            "lk.example.com/path",
+            "https://lk.example.com",
+            "lk example.com",
+        ] {
             config.web_proxy.host = Some(host.to_string());
             assert_eq!(config.web_proxy_link(PROXY_LINK), None, "host {host:?}");
         }
@@ -1058,15 +1103,26 @@ mod tests {
             ..Default::default()
         };
 
-        assert!(messages.invite_manual_prompt_or_default().contains("Введите"));
-        assert!(messages.invite_followup_prompt_or_default().contains("invite-токен"));
+        assert!(
+            messages
+                .invite_manual_prompt_or_default()
+                .contains("Введите")
+        );
+        assert!(
+            messages
+                .invite_followup_prompt_or_default()
+                .contains("invite-токен")
+        );
     }
 
     #[test]
     fn configured_bot_username_normalizes_input() {
         let config = sample_config();
 
-        assert_eq!(config.configured_bot_username().as_deref(), Some("TelemtAdmin"));
+        assert_eq!(
+            config.configured_bot_username().as_deref(),
+            Some("TelemtAdmin")
+        );
     }
 
     #[test]
@@ -1074,7 +1130,9 @@ mod tests {
         let config = sample_config();
 
         assert_eq!(
-            config.resolved_bot_username(Some("@AnotherBot".to_string())).as_deref(),
+            config
+                .resolved_bot_username(Some("@AnotherBot".to_string()))
+                .as_deref(),
             Some("TelemtAdmin")
         );
     }
@@ -1108,7 +1166,11 @@ mod tests {
             ..Default::default()
         };
 
-        assert!(messages.no_access_status_or_default().contains("invite-токен"));
+        assert!(
+            messages
+                .no_access_status_or_default()
+                .contains("invite-токен")
+        );
         assert!(messages.no_access_link_or_default().contains("нет доступа"));
     }
 
