@@ -24,10 +24,13 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, rustfmt
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
+
+      - name: Cargo fmt
+        run: cargo fmt --check
 
       - name: Cargo test
         run: cargo test --locked
