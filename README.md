@@ -669,4 +669,4 @@ docker compose logs --tail=100 telemt-admin
 Проект использует GitHub Actions для автоматической проверки кода и публикации релизов.
 
 - основной CI на `push`/`pull_request` запускает `cargo fmt --check`, `cargo test --locked`, `cargo check --locked` и `cargo clippy --all-targets -- -D warnings`;
-- release workflow по тегу `vX.Y.Z` собирает артефакты под Linux и Windows, публикует Docker-образ в GHCR и формирует release notes через `git-cliff`.
+- release workflow по тегу `vX.Y.Z` собирает бинарник под Linux x86_64, публикует Docker-образ в GHCR и формирует release notes через `git-cliff`.
